@@ -13,12 +13,33 @@
 
 package org.hornetq.amqp.dealer.util;
 
+import io.netty.buffer.ByteBuf;
+
 /**
  * @author Clebert Suconic
  */
 
 public class ByteUtil
 {
+   public static void debugFrame(String message, ByteBuf byteIn)
+   {
+      int location = byteIn.readerIndex();
+      // debugging
+      byte[] frame = new byte[byteIn.writerIndex()];
+      byteIn.readBytes(frame);
+
+      try
+      {
+         System.err.println(message + "\n" + ByteUtil.formatGroup(ByteUtil.bytesToHex(frame), 4, 16));
+      }
+      catch (Exception e)
+      {
+         e.printStackTrace();
+      }
+
+      byteIn.readerIndex(location);
+   }
+
 
 
    public static String formatGroup(String str, int groupSize, int lineBreak)
@@ -66,6 +87,19 @@ public class ByteUtil
       }
       return new String(hexChars);
    }
+
+   public static byte[] hexStringToByteArray(String s)
+   {
+      int len = s.length();
+      byte[] data = new byte[len / 2];
+      for (int i = 0; i < len; i += 2)
+      {
+         data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
+            + Character.digit(s.charAt(i + 1), 16));
+      }
+      return data;
+   }
+
 
 
 }

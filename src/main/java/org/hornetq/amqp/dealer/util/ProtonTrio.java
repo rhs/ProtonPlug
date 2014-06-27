@@ -30,6 +30,7 @@ import org.apache.qpid.proton.engine.Sasl;
 import org.apache.qpid.proton.engine.Session;
 import org.apache.qpid.proton.engine.Transport;
 import org.apache.qpid.proton.engine.TransportResultFactory;
+import org.hornetq.amqp.dealer.SASL;
 
 /**
  * @author Clebert Suconic
@@ -39,7 +40,9 @@ public abstract class ProtonTrio
 {
    static ThreadLocal<Boolean> inDispatch = new ThreadLocal<>();
 
-   private Sasl qpidServerSASL;
+   private Sasl sasl;
+
+   private Runnable saslCallback;
 
    protected final Transport transport = Proton.transport();
 
@@ -55,14 +58,30 @@ public abstract class ProtonTrio
 
    private Executor executor;
 
-   private boolean init = false;
-
 
    public ProtonTrio(Executor executor)
    {
+
+      // TODO parameterize maxFrameSize
+      transport.setMaxFrameSize(1024 * 1024);
       transport.bind(connection);
       connection.collect(collector);
       this.executor = executor;
+   }
+
+   public void setSaslCallback(Runnable runnable)
+   {
+      this.saslCallback = runnable;
+   }
+
+   public Transport getTransport()
+   {
+      return transport;
+   }
+
+   public Connection getConnection()
+   {
+      return connection;
    }
 
 
@@ -90,16 +109,22 @@ public abstract class ProtonTrio
       return lock;
    }
 
-   private static final byte[] VERSION_HEADER = new byte[]{
-      'A', 'M', 'Q', 'P', 0, 1, 0, 0
-   };
-
-
    public void createServerSasl(String... mechanisms)
    {
-      qpidServerSASL = transport.sasl();
-      qpidServerSASL.server();
-      qpidServerSASL.setMechanisms(mechanisms);
+      sasl = transport.sasl();
+      sasl.server();
+      sasl.setMechanisms(mechanisms);
+   }
+
+   public void createClientSasl(SASL clientSASL)
+   {
+      if (clientSASL != null)
+      {
+         sasl = transport.sasl();
+         sasl.setMechanisms(clientSASL.getName());
+         byte[] initialSasl = clientSASL.getBytes();
+         sasl.send(initialSasl, 0, initialSasl.length);
+      }
    }
 
 
@@ -113,72 +138,131 @@ public abstract class ProtonTrio
       }
    }
 
-   public boolean pump(ByteBuf bytes)
+   /**
+    * this method will change the readerIndex on bytes to the latest read position
+    */
+   public void pump(ByteBuf bytes)
    {
+      if (bytes.readableBytes() < 8)
+      {
+         return;
+      }
+
+
       try
       {
          synchronized (lock)
          {
-            if (bytes.writerIndex() < 8)
+
+            final ByteBuffer input = transport.getInputBuffer();
+
+            while (bytes.readerIndex() < bytes.writerIndex())
             {
-               return false;
+               int remaining = input.remaining();
+               if (remaining == 0)
+               {
+                  System.err.println("Buffer full!!!");
+                  break;
+               }
+               int min = Math.min(remaining, bytes.readableBytes());
+               ByteBuffer tmp = bytes.internalNioBuffer(bytes.readerIndex(), min);
+               input.put(tmp);
+               if (!processBuffer())
+               {
+                  System.err.println("DEBUG This.. Process Buffer returned false!!!!!!!!!!!!!");
+                  break;
+               }
+               dispatch();
+               bytes.readerIndex(bytes.readerIndex() + min);
             }
-            System.out.println("Size:" + bytes.writerIndex());
-            System.out.println("Capacity on target:" + transport.getInputBuffer().capacity());
-            System.out.println("Position on target:" + transport.getInputBuffer().position());
-            ByteBuffer tmp = bytes.internalNioBuffer(0, bytes.writerIndex());
-            transport.getInputBuffer().put(tmp);
-            if (transport.processInput() != TransportResultFactory.ok())
-            {
-               System.err.println("Couldn't process header!!!");
-               connection.setCondition(new ErrorCondition(AmqpError.ILLEGAL_STATE, "Error processing header"));
-               return false;
-            }
-
-            checkSASL();
-            dispatch();
-
-
-            return true;
-
          }
       }
       finally
       {
+         // After everything is processed we still need to check for more dispatches!
          dispatch();
       }
    }
 
+
+   private boolean processBuffer()
+   {
+      if (transport.processInput() != TransportResultFactory.ok())
+      {
+         System.err.println("Couldn't process header!!!");
+         connection.setCondition(new ErrorCondition(AmqpError.ILLEGAL_STATE, "Error processing header"));
+         return false;
+      }
+
+      checkSASL();
+      dispatch();
+      return true;
+   }
+
    private void checkSASL()
    {
-      if (qpidServerSASL != null && qpidServerSASL.getRemoteMechanisms().length > 0)
+      if (sasl != null && sasl.getRemoteMechanisms().length > 0)
       {
 
-         byte[] dataSASL = new byte[qpidServerSASL.pending()];
-         qpidServerSASL.recv(dataSASL, 0, dataSASL.length);
+         byte[] dataSASL = new byte[sasl.pending()];
+         sasl.recv(dataSASL, 0, dataSASL.length);
 
-         if (qpidServerSASL.getRemoteMechanisms()[0].equals("PLAIN"))
+         if (sasl.getRemoteMechanisms()[0].equals("PLAIN"))
          {
             setUserPass(dataSASL);
          }
 
          // TODO: do the proper SASL authorization here
          // call an abstract method (authentication (bytes[])
-         qpidServerSASL.done(Sasl.SaslOutcome.PN_SASL_OK);
-         qpidServerSASL = null;
+         sasl.done(Sasl.SaslOutcome.PN_SASL_OK);
+         sasl = null;
+         if (saslCallback != null)
+         {
+            saslCallback.run();
+         }
       }
    }
 
    public void dispatch()
    {
+
+
+      if (inDispatch.get() != null)
+      {
+//         new Exception("Already in dispatch mode, using executor").printStackTrace();
+         executor.execute(dispatchRunnable);
+         return;
+      }
+
+      inDispatch.set(Boolean.TRUE);
+
+      try
+      {
+         internalDispatch();
+      }
+      finally
+      {
+         inDispatch.set(null);
+      }
+
+   }
+
+   protected void internalDispatch()
+   {
       synchronized (lock)
       {
-         Event ev;
-         while ((ev = collector.peek()) != null)
+         try
          {
-            System.out.println("Dispatching " + ev);
-            dispatch(ev);
-            collector.pop();
+            Event ev;
+            while ((ev = collector.peek()) != null)
+            {
+               dispatch(ev);
+               collector.pop();
+            }
+         }
+         catch (Exception e)
+         {
+            connection.setCondition(new ErrorCondition(AmqpError.INTERNAL_ERROR, e.getMessage()));
          }
 
 
@@ -188,7 +272,7 @@ public abstract class ProtonTrio
    }
 
 
-   protected void onRemoteState(Connection connection)
+   protected void onRemoteState(Connection connection) throws Exception
    {
       if (connection.getRemoteState() == EndpointState.ACTIVE)
       {
@@ -197,15 +281,14 @@ public abstract class ProtonTrio
       }
       else if (connection.getRemoteState() == EndpointState.CLOSED)
       {
-         System.out.println("Closing connection");
          connection.close();
          connectionClosed(connection);
       }
    }
 
-   protected abstract void connectionOpened(Connection connection);
+   protected abstract void connectionOpened(Connection connection) throws Exception;
 
-   protected abstract void connectionClosed(Connection connection);
+   protected abstract void connectionClosed(Connection connection) throws Exception;
 
    protected void onRemoteState(Session session)
    {
@@ -288,55 +371,38 @@ public abstract class ProtonTrio
 
    protected abstract void onTransport(Transport transport);
 
-   private void dispatch(Event event)
+   private void dispatch(Event event) throws Exception
    {
 
-      if (inDispatch.get() != null)
+      switch (event.getType())
       {
-//         new Exception("Already in dispatch mode, using executor").printStackTrace();
-         executor.execute(dispatchRunnable);
-         return;
-      }
-
-      inDispatch.set(Boolean.TRUE);
-
-
-      try
-      {
-         switch (event.getType())
-         {
-            case CONNECTION_REMOTE_STATE:
-               onRemoteState(event.getConnection());
-               break;
-            case CONNECTION_LOCAL_STATE:
-               onLocalState(event.getConnection());
-               break;
-            case SESSION_REMOTE_STATE:
-               onRemoteState(event.getSession());
-               break;
-            case SESSION_LOCAL_STATE:
-               onLocalState(event.getSession());
-               break;
-            case LINK_REMOTE_STATE:
-               onRemoteState(event.getLink());
-               break;
-            case LINK_LOCAL_STATE:
-               onLocalState(event.getLink());
-               break;
-            case LINK_FLOW:
-               onFlow(event.getLink());
-               break;
-            case TRANSPORT:
-               onTransport(event.getTransport());
-               break;
-            case DELIVERY:
-               onDelivery(event.getDelivery());
-               break;
-         }
-      }
-      finally
-      {
-         inDispatch.set(null);
+         case CONNECTION_REMOTE_STATE:
+            onRemoteState(event.getConnection());
+            break;
+         case CONNECTION_LOCAL_STATE:
+            onLocalState(event.getConnection());
+            break;
+         case SESSION_REMOTE_STATE:
+            onRemoteState(event.getSession());
+            break;
+         case SESSION_LOCAL_STATE:
+            onLocalState(event.getSession());
+            break;
+         case LINK_REMOTE_STATE:
+            onRemoteState(event.getLink());
+            break;
+         case LINK_LOCAL_STATE:
+            onLocalState(event.getLink());
+            break;
+         case LINK_FLOW:
+            onFlow(event.getLink());
+            break;
+         case TRANSPORT:
+            onTransport(event.getTransport());
+            break;
+         case DELIVERY:
+            onDelivery(event.getDelivery());
+            break;
       }
    }
 

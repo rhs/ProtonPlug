@@ -11,7 +11,7 @@
  * permissions and limitations under the License.
  */
 
-package org.hornetq.amqp.dealer;
+package org.hornetq.amqp.dealer.protonimpl;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -20,60 +20,60 @@ import java.util.concurrent.Executor;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
-import org.apache.qpid.proton.amqp.transaction.Coordinator;
 import org.apache.qpid.proton.amqp.transport.AmqpError;
 import org.apache.qpid.proton.amqp.transport.ErrorCondition;
+import org.apache.qpid.proton.engine.Connection;
 import org.apache.qpid.proton.engine.Delivery;
 import org.apache.qpid.proton.engine.Link;
-import org.apache.qpid.proton.engine.Receiver;
-import org.apache.qpid.proton.engine.Sender;
 import org.apache.qpid.proton.engine.Session;
 import org.apache.qpid.proton.engine.Transport;
+import org.hornetq.amqp.dealer.AMQPConnection;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
 import org.hornetq.amqp.dealer.spi.ProtonConnectionSPI;
-import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
 import org.hornetq.amqp.dealer.util.ProtonTrio;
 
 /**
- * @author <a href="mailto:andy.taylor@jboss.org">Andy Taylor</a>
  * Clebert Suconic
  */
-public class ProtonRemotingConnection
+public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable implements AMQPConnection
 {
-   private final ProtonServerTrio trio;
+   protected final ProtonInterceptTrio trio;
+   protected final ProtonConnectionSPI connectionSPI;
+   protected final long creationTime;
 
-   private final Map<Object, ProtonSession> sessions = new ConcurrentHashMap<>();
+   // TODO parameterize
+   protected final int numberOfCredits = 500;
 
-   private final long creationTime;
+   protected final Map<Object, ProtonSessionImpl> sessions = new ConcurrentHashMap<>();
+   protected volatile boolean dataReceived;
 
-   private boolean dataReceived;
-
-   private final ProtonConnectionSPI connectionSPI;
-
-   public ProtonRemotingConnection(ProtonConnectionSPI connectionSPI)
+   public ProtonAbstractConnectionImpl(ProtonConnectionSPI connectionSPI)
    {
       this.connectionSPI = connectionSPI;
-
       this.creationTime = System.currentTimeMillis();
-
-      trio = new ProtonServerTrio(connectionSPI.newSingleThreadExecutor());
-
-      trio.createServerSasl(connectionSPI.getSASLMechanisms());
+      trio = createTrio(connectionSPI);
    }
 
+   protected ProtonInterceptTrio createTrio(ProtonConnectionSPI connectionSPI)
+   {
+      return new ProtonInterceptTrio(connectionSPI.newSingleThreadExecutor());
+   }
+
+   @Override
    public void inputBuffer(ByteBuf buffer)
    {
+      setDataReceived();
       trio.pump(buffer);
+   }
+
+   public int getNumberOfCredits()
+   {
+      return numberOfCredits;
    }
 
    public ProtonTrio getTrio()
    {
       return trio;
-   }
-
-   public long getCreationTime()
-   {
-      return creationTime;
    }
 
    public void destroy()
@@ -86,6 +86,40 @@ public class ProtonRemotingConnection
       return connectionSPI;
    }
 
+   @Override
+   public String getLogin()
+   {
+      return trio.getUsername();
+   }
+
+   @Override
+   public String getPasscode()
+   {
+      return trio.getPassword();
+   }
+
+   public void setSaslCallback(Runnable runnable)
+   {
+      trio.setSaslCallback(runnable);
+   }
+
+   protected ProtonSessionImpl getSession(Session realSession) throws HornetQAMQPException
+   {
+      ProtonSessionImpl protonSession = sessions.get(realSession);
+      if (protonSession == null)
+      {
+         // how this is possible? Log a warn here
+         return sessionOpened(realSession);
+      }
+      return protonSession;
+   }
+
+   protected abstract void remoteLinkOpened(Link link) throws HornetQAMQPException;
+
+
+   protected abstract ProtonSessionImpl sessionOpened(Session realSession) throws HornetQAMQPException;
+
+   @Override
    public boolean checkDataReceived()
    {
       boolean res = dataReceived;
@@ -95,63 +129,36 @@ public class ProtonRemotingConnection
       return res;
    }
 
-   public String getLogin()
+   @Override
+   public long getCreationTime()
    {
-      return trio.getUsername();
+      return creationTime;
    }
 
-   public String getPasscode()
-   {
-      return trio.getPassword();
-   }
 
    protected synchronized void setDataReceived()
    {
       dataReceived = true;
    }
 
-   private ProtonSession getSession(Session realSession) throws HornetQAMQPException
-   {
-      ProtonSession protonSession = sessions.get(realSession);
-      if (protonSession == null)
-      {
-         // how this is possible? Log a warn here
-         System.err.println("Couldn't find session, creating one");
-         return createSession(realSession);
-      }
-      return protonSession;
-   }
-
-
-   private ProtonSession createSession(Session realSession) throws HornetQAMQPException
-   {
-      ProtonSessionSPI sessionSPI = connectionSPI.createSessionSPI();
-      ProtonSession protonSession = new ProtonSession(sessionSPI, this);
-      realSession.setContext(protonSession);
-      sessions.put(realSession, protonSession);
-
-      return protonSession;
-
-   }
-
-   class ProtonServerTrio extends ProtonTrio
+   protected class ProtonInterceptTrio extends ProtonTrio
    {
 
-      public ProtonServerTrio(Executor executor)
+      public ProtonInterceptTrio(Executor executor)
       {
          super(executor);
       }
 
       @Override
-      protected void connectionOpened(org.apache.qpid.proton.engine.Connection connection)
+      protected void connectionOpened(Connection connection) throws Exception
       {
-
+         initialise();
       }
 
       @Override
       protected void connectionClosed(org.apache.qpid.proton.engine.Connection connection)
       {
-         for (ProtonSession protonSession : sessions.values())
+         for (ProtonSessionImpl protonSession : sessions.values())
          {
             protonSession.close();
          }
@@ -165,10 +172,9 @@ public class ProtonRemotingConnection
       @Override
       protected void sessionOpened(Session session)
       {
-
          try
          {
-            createSession(session);
+            ProtonAbstractConnectionImpl.this.getSession(session).initialise();
          }
          catch (Throwable e)
          {
@@ -181,7 +187,7 @@ public class ProtonRemotingConnection
       @Override
       protected void sessionClosed(Session session)
       {
-         ProtonSession protonSession = (ProtonSession) session.getContext();
+         ProtonSessionImpl protonSession = (ProtonSessionImpl) session.getContext();
          protonSession.close();
          sessions.remove(session);
          session.close();
@@ -193,41 +199,11 @@ public class ProtonRemotingConnection
 
          try
          {
-
-            ProtonSession protonSession = getSession(link.getSession());
-
-            link.setSource(link.getRemoteSource());
-            link.setTarget(link.getRemoteTarget());
-            if (link instanceof Receiver)
-            {
-               Receiver receiver = (Receiver) link;
-               if (link.getRemoteTarget() instanceof Coordinator)
-               {
-                  protonSession.initialise(true);
-                  Coordinator coordinator = (Coordinator) link.getRemoteTarget();
-                  protonSession.addTransactionHandler(coordinator, receiver);
-               }
-               else
-               {
-                  protonSession.initialise(false);
-                  protonSession.addProducer(receiver);
-                  //todo do this using the server session flow control
-                  receiver.flow(100);
-               }
-            }
-            else
-            {
-               synchronized (getTrio().getLock())
-               {
-                  protonSession.initialise(false);
-                  Sender sender = (Sender) link;
-                  protonSession.addConsumer(sender);
-                  sender.offer(1);
-               }
-            }
+            remoteLinkOpened(link);
          }
          catch (Throwable e)
          {
+            e.printStackTrace();
             link.close();
             transport.setCondition(new ErrorCondition(AmqpError.ILLEGAL_STATE, e.getMessage()));
          }
@@ -305,7 +281,7 @@ public class ProtonRemotingConnection
       {
          int size = transport.pending();
 
-         if (size == 0)
+         if (size <= 0)
          {
             return null;
          }

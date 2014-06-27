@@ -13,19 +13,15 @@
 
 package org.hornetq.amqp.dealer;
 
-import org.apache.qpid.proton.engine.Delivery;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
 
 /**
- * @author <a href="mailto:andy.taylor@jboss.org">Andy Taylor</a>
- *         <p/>
- *         An interface to handle deliveries, either messages, acks or transaction calls
+ * @author Clebert Suconic
  */
-public interface ProtonDeliveryHandler
+
+public interface AMQPClientSession
 {
-   void onMessage(Delivery delivery) throws HornetQAMQPException;
+   AMQPClientSender createSender(String address, boolean preSettled) throws HornetQAMQPException;
 
-   void checkState();
-
-   void close() throws HornetQAMQPException;
+   AMQPClientReceiver createReceiver(String address) throws HornetQAMQPException;
 }

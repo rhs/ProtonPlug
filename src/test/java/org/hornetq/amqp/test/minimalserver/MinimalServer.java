@@ -10,7 +10,7 @@
  * implied.  See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package org.hornetq.amqp.test.dumbserver;
+package org.hornetq.amqp.test.minimalserver;
 
 
 import java.net.InetSocketAddress;
@@ -36,8 +36,10 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
+import org.hornetq.amqp.dealer.AMQPConnection;
+import org.hornetq.amqp.dealer.protonimpl.server.ProtonServerConnectionFactory;
 import org.hornetq.amqp.dealer.util.ByteUtil;
-import org.hornetq.amqp.dealer.ProtonRemotingConnection;
+import org.hornetq.amqp.dealer.util.DebugInfo;
 
 /**
  * A Netty TCP Acceptor that supports SSL
@@ -70,13 +72,16 @@ public class MinimalServer
 
    private String host;
 
+   private boolean sasl;
+
    // 5672 is the default here
    private int port;
 
-   public synchronized void start(String host, int port) throws Exception
+   public synchronized void start(String host, int port, final boolean sasl) throws Exception
    {
       this.host = host;
       this.port = port;
+      this.sasl = sasl;
 
       if (channelClazz != null)
       {
@@ -99,7 +104,7 @@ public class MinimalServer
          public void initChannel(Channel channel) throws Exception
          {
             ChannelPipeline pipeline = channel.pipeline();
-            pipeline.addLast(new ProtocolDecoder());
+            pipeline.addLast("amqp-handler", new ProtocolDecoder());
          }
       };
       bootstrap.childHandler(factory);
@@ -119,15 +124,17 @@ public class MinimalServer
    class ProtocolDecoder extends ByteToMessageDecoder
    {
 
-      ProtonRemotingConnection connection;
+      AMQPConnection connection;
 
 
       public ProtocolDecoder()
       {
       }
 
+      boolean init = false;
+
       @Override
-      protected void decode(ChannelHandlerContext ctx, ByteBuf byteIn, List<Object> out) throws Exception
+      protected void decode(final ChannelHandlerContext ctx, ByteBuf byteIn, List<Object> out) throws Exception
       {
          if (ctx.isRemoved())
          {
@@ -136,29 +143,23 @@ public class MinimalServer
 
          if (connection == null)
          {
-            connection = new ProtonRemotingConnection(new MinimalConnectionSPI(ctx.channel()));
+            connection = ProtonServerConnectionFactory.getFactory().createConnection(new MinimalConnectionSPI(ctx.channel()), sasl);
          }
 
 
-         int location = byteIn.readerIndex();
-         // debugging
-         byte[] frame = new byte[byteIn.writerIndex()];
-         byteIn.readBytes(frame);
-
-         try
+         if (DebugInfo.debug)
          {
-            System.err.println("Buffer Received: " + "\n" + ByteUtil.formatGroup(ByteUtil.bytesToHex(frame), 4, 16));
+            ByteUtil.debugFrame("Buffer Received ", byteIn);
          }
-         catch (Exception e)
-         {
-            e.printStackTrace();
-         }
-
-         byteIn.readerIndex(location);
 
          connection.inputBuffer(byteIn);
-         byteIn.readerIndex(byteIn.writerIndex());
          ctx.flush();
+
+         if (!init)
+         {
+            init = true;
+         }
+
       }
    }
 
@@ -184,7 +185,7 @@ public class MinimalServer
       MinimalServer server = new MinimalServer();
       try
       {
-         server.start("127.0.0.1", 5672);
+         server.start("127.0.0.1", 5672, true);
 
 
          while (true)

@@ -11,20 +11,20 @@
  * permissions and limitations under the License.
  */
 
-package org.hornetq.amqp.test.dumbserver;
+package org.hornetq.amqp.test.minimalserver;
 
-import java.util.Random;
+import java.nio.ByteBuffer;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.buffer.UnpooledByteBufAllocator;
 import org.apache.qpid.proton.amqp.Binary;
-import org.apache.qpid.proton.jms.EncodedMessage;
-import org.hornetq.amqp.dealer.ProtonSession;
+import org.hornetq.amqp.dealer.protonimpl.ProtonSessionImpl;
+import org.hornetq.amqp.dealer.protonimpl.server.ServerProtonSessionImpl;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
+import org.hornetq.amqp.dealer.util.ProtonServerMessage;
 
 /**
  * @author Clebert Suconic
@@ -36,12 +36,12 @@ public class MinimalSessionSPI implements ProtonSessionSPI
    String user;
    String password;
    boolean transacted;
-   ProtonSession session;
+   ServerProtonSessionImpl session;
 
    @Override
-   public void init(ProtonSession session, String user, String passcode, boolean transacted)
+   public void init(ProtonSessionImpl session, String user, String passcode, boolean transacted)
    {
-      this.session = session;
+      this.session = (ServerProtonSessionImpl)session;
       this.user = user;
       this.password = passcode;
       this.transacted = transacted;
@@ -91,16 +91,10 @@ public class MinimalSessionSPI implements ProtonSessionSPI
    }
 
    @Override
-   public EncodedMessage encodeMessage(Object message, int deliveryCount)
+   public ProtonServerMessage encodeMessage(Object message, int deliveryCount)
    {
-      // We are storing internally as EncodedMessage on this minimal server
-      return (EncodedMessage)message;
-   }
-
-   @Override
-   public ByteBuf createBuffer(int size)
-   {
-      return UnpooledByteBufAllocator.DEFAULT.buffer(size);
+      // We are storing internally as EncodedMessage on this minimalserver server
+      return (ProtonServerMessage)message;
    }
 
    @Override
@@ -146,14 +140,19 @@ public class MinimalSessionSPI implements ProtonSessionSPI
    @Override
    public void resumeDelivery(Object consumer)
    {
+      System.out.println("Resume delivery!!!");
       ((Consumer)consumer).start();
    }
 
    @Override
-   public void serverSend(EncodedMessage encodedMessage, String address)
+   public void serverSend(String address, int messageFormat, ByteBuffer buffer)
    {
+      ProtonServerMessage serverMessage = new ProtonServerMessage();
+      serverMessage.decode(buffer);
+
       BlockingDeque<Object> queue = DumbServer.getQueue(address);
-      queue.add(encodedMessage);
+      queue.add(serverMessage);
+
    }
 
 
@@ -171,6 +170,7 @@ public class MinimalSessionSPI implements ProtonSessionSPI
 
       public void close()
       {
+         System.out.println("Closing!!!");
          running = false;
          if (thread != null)
          {
@@ -186,11 +186,12 @@ public class MinimalSessionSPI implements ProtonSessionSPI
          thread = null;
       }
 
-      public void start()
+      public synchronized void start()
       {
          running = true;
          if (thread == null)
          {
+            System.out.println("Start!!!");
             thread = new Thread()
             {
                public void run()
@@ -200,9 +201,10 @@ public class MinimalSessionSPI implements ProtonSessionSPI
                      while (running)
                      {
                         Object msg = queue.poll(1, TimeUnit.SECONDS);
+
                         if (msg != null)
                         {
-                           session.deliverMessage(msg, Consumer.this, 1);
+                           session.serverDelivery(msg, Consumer.this, 1);
                         }
                      }
                   }

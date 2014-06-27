@@ -10,7 +10,7 @@
  * implied.  See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package org.hornetq.amqp.test.dumbserver;
+package org.hornetq.amqp.test.minimalserver;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;

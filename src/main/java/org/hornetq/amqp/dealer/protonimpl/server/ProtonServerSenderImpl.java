@@ -11,7 +11,7 @@
  * permissions and limitations under the License.
  */
 
-package org.hornetq.amqp.dealer;
+package org.hornetq.amqp.dealer.protonimpl.server;
 
 import java.util.Map;
 
@@ -25,35 +25,31 @@ import org.apache.qpid.proton.amqp.transport.DeliveryState;
 import org.apache.qpid.proton.amqp.transport.SenderSettleMode;
 import org.apache.qpid.proton.engine.Delivery;
 import org.apache.qpid.proton.engine.Sender;
-import org.apache.qpid.proton.engine.impl.LinkImpl;
-import org.apache.qpid.proton.jms.EncodedMessage;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
+import org.hornetq.amqp.dealer.logger.HornetQAMQPProtocolMessageBundle;
+import org.hornetq.amqp.dealer.protonimpl.AbstractProtonSender;
+import org.hornetq.amqp.dealer.protonimpl.ProtonAbstractConnectionImpl;
+import org.hornetq.amqp.dealer.protonimpl.ProtonSessionImpl;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
+import org.hornetq.amqp.dealer.util.ProtonServerMessage;
+import org.apache.qpid.proton.amqp.messaging.Source;
 
 /**
- * A this is a wrapper around a HornetQ ServerConsumer for handling outgoing messages and incoming acks via a Proton Sender
- *
- * @author <a href="mailto:andy.taylor@jboss.org">Andy Taylor</a>
+ * @author Clebert Suconic
  */
-public class ProtonOutbound implements ProtonDeliveryHandler
+
+public class ProtonServerSenderImpl extends AbstractProtonSender
 {
+
    private static final Symbol SELECTOR = Symbol.getSymbol("jms-selector");
    private static final Symbol COPY = Symbol.valueOf("copy");
-   private final ProtonSession protonSession;
-   private final Sender sender;
-   private final ProtonRemotingConnection connection;
+
    private Object brokerConsumer;
-   private boolean closed = false;
-   private final ProtonSessionSPI sessionSPI;
 
-   public ProtonOutbound(ProtonRemotingConnection connection, Sender sender, ProtonSession protonSession, ProtonSessionSPI server)
+   public ProtonServerSenderImpl(ProtonAbstractConnectionImpl connection, Sender sender, ProtonSessionImpl protonSession, ProtonSessionSPI server)
    {
-      this.connection = connection;
-      this.sender = sender;
-      this.protonSession = protonSession;
-      this.sessionSPI = server;
+      super(connection, sender, protonSession, server);
    }
-
 
    public Object getBrokerConsumer()
    {
@@ -61,11 +57,11 @@ public class ProtonOutbound implements ProtonDeliveryHandler
    }
 
    /*
-   * start the session
-   * */
+* start the session
+* */
    public void start() throws HornetQAMQPException
    {
-      sessionSPI.start();
+      super.start();
       // protonSession.getServerSession().start();
 
       //todo add flow control
@@ -81,17 +77,20 @@ public class ProtonOutbound implements ProtonDeliveryHandler
       }
    }
 
-   /*
-   * create the actual underlying HornetQ Server Consumer
-   * */
-   public void init() throws HornetQAMQPException
+   /**
+    * create the actual underlying HornetQ Server Consumer
+    * */
+   @Override
+   public void initialise() throws HornetQAMQPException
    {
-      org.apache.qpid.proton.amqp.messaging.Source source = (org.apache.qpid.proton.amqp.messaging.Source) sender.getRemoteSource();
+      super.initialise();
+
+      Source source = (Source) sender.getRemoteSource();
 
       String queue;
 
       String selector = null;
-      Map filter = source.getFilter();
+      Map filter = source == null ? null : source.getFilter();
       if (filter != null)
       {
          DescribedType value = (DescribedType) filter.get(SELECTOR);
@@ -101,46 +100,49 @@ public class ProtonOutbound implements ProtonDeliveryHandler
          }
       }
 
-      if (source.getDynamic())
+      if (source != null)
       {
-         //if dynamic we have to create the node (queue) and set the address on the target, the node is temporary and
-         // will be deleted on closing of the session
-         queue = java.util.UUID.randomUUID().toString();
+         if (source.getDynamic())
+         {
+            //if dynamic we have to create the node (queue) and set the address on the target, the node is temporary and
+            // will be deleted on closing of the session
+            queue = java.util.UUID.randomUUID().toString();
+            try
+            {
+               sessionSPI.createTemporaryQueue(queue);
+               //protonSession.getServerSession().createQueue(queue, queue, null, true, false);
+            }
+            catch (Exception e)
+            {
+               throw HornetQAMQPProtocolMessageBundle.BUNDLE.errorCreatingTemporaryQueue(e.getMessage());
+            }
+            source.setAddress(queue);
+         }
+         else
+         {
+            //if not dynamic then we use the targets address as the address to forward the messages to, however there has to
+            //be a queue bound to it so we nee to check this.
+            queue = source.getAddress();
+            if (queue == null)
+            {
+               throw HornetQAMQPProtocolMessageBundle.BUNDLE.sourceAddressNotSet();
+            }
+
+            if (!sessionSPI.queueQuery(queue))
+            {
+               throw HornetQAMQPProtocolMessageBundle.BUNDLE.sourceAddressDoesntExist();
+            }
+         }
+
+         boolean browseOnly = source.getDistributionMode() != null && source.getDistributionMode().equals(COPY);
          try
          {
-            sessionSPI.createTemporaryQueue(queue);
-            //protonSession.getServerSession().createQueue(queue, queue, null, true, false);
+            brokerConsumer = sessionSPI.createConsumer(queue, selector, browseOnly);
          }
          catch (Exception e)
          {
-            throw HornetQAMQPProtocolMessageBundle.BUNDLE.errorCreatingTemporaryQueue(e.getMessage());
+            throw HornetQAMQPProtocolMessageBundle.BUNDLE.errorCreatingHornetQConsumer(e.getMessage());
          }
-         source.setAddress(queue);
-      }
-      else
-      {
-         //if not dynamic then we use the targets address as the address to forward the messages to, however there has to
-         //be a queue bound to it so we nee to check this.
-         queue = source.getAddress();
-         if (queue == null)
-         {
-            throw HornetQAMQPProtocolMessageBundle.BUNDLE.sourceAddressNotSet();
-         }
-
-         if (!sessionSPI.queueQuery(queue))
-         {
-            throw HornetQAMQPProtocolMessageBundle.BUNDLE.sourceAddressDoesntExist();
-         }
-      }
-
-      boolean browseOnly = source.getDistributionMode() != null && source.getDistributionMode().equals(COPY);
-      try
-      {
-         brokerConsumer = sessionSPI.createConsumer(queue, selector, browseOnly);
-      }
-      catch (Exception e)
-      {
-         throw HornetQAMQPProtocolMessageBundle.BUNDLE.errorCreatingHornetQConsumer(e.getMessage());
       }
    }
 
@@ -149,68 +151,11 @@ public class ProtonOutbound implements ProtonDeliveryHandler
    * */
    public void close() throws HornetQAMQPException
    {
-      closed = true;
-      protonSession.removeConsumer(brokerConsumer);
+      super.close();
       sessionSPI.closeConsumer(brokerConsumer);
    }
 
-   /*
-   * handle an out going message from HornetQ, send via the Proton Sender
-   * */
-   public int handleDelivery(Object message, int deliveryCount)
-   {
-      if (closed)
-      {
-         System.err.println("Message can't be delivered as it's closed");
-         return 0;
-      }
 
-      //presettle means we can ack the message on the dealer side before we send it, i.e. for browsers
-      boolean preSettle = sender.getRemoteSenderSettleMode() == SenderSettleMode.SETTLED;
-      //we only need a tag if we are going to ack later
-      byte[] tag = preSettle ? new byte[0] : protonSession.getTag();
-      //encode the message
-      EncodedMessage encodedMessage = null;
-      try
-      {
-         // This can be done a lot better here
-         encodedMessage = sessionSPI.encodeMessage(message, deliveryCount);
-      }
-      catch (Throwable e)
-      {
-         e.printStackTrace();
-      }
-
-
-      synchronized (connection.getTrio().getLock())
-      {
-         final Delivery delivery;
-         delivery = sender.delivery(tag, 0, tag.length);
-         delivery.setContext(message);
-         sender.send(encodedMessage.getArray(), 0, encodedMessage.getLength());
-
-         ((LinkImpl) sender).addCredit(1);
-
-         if (preSettle)
-         {
-            delivery.settle();
-         }
-         else
-         {
-            sender.advance();
-         }
-
-         connection.getTrio().dispatch();
-      }
-
-
-      return encodedMessage.getLength();
-   }
-
-   @Override
-   /*
-   * handle an incoming Ack from Proton, basically pass to HornetQ to handle
-   * */
    public void onMessage(Delivery delivery) throws HornetQAMQPException
    {
       Object message = delivery.getContext();
@@ -276,16 +221,39 @@ public class ProtonOutbound implements ProtonDeliveryHandler
       }
    }
 
-   /*
-   * check the state of the consumer, i.e. are there any more messages. only really needed for browsers?
-   * */
+   @Override
    public synchronized void checkState()
    {
+      super.checkState();
       sessionSPI.resumeDelivery(brokerConsumer);
    }
 
-   public Sender getSender()
+
+   /**
+    * handle an out going message from HornetQ, send via the Proton Sender
+    * */
+   public int handleDelivery(Object message, int deliveryCount)
    {
-      return sender;
+      if (closed)
+      {
+         System.err.println("Message can't be delivered as it's closed");
+         return 0;
+      }
+
+      //encode the message
+      ProtonServerMessage serverMessage = null;
+      try
+      {
+         // This can be done a lot better here
+         serverMessage = sessionSPI.encodeMessage(message, deliveryCount);
+      }
+      catch (Throwable e)
+      {
+         e.printStackTrace();
+      }
+
+      return performSend(serverMessage, message);
    }
+
+
 }
