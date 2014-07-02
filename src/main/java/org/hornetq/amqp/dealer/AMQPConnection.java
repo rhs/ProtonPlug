@@ -21,6 +21,9 @@ import io.netty.buffer.ByteBuf;
 
 public interface AMQPConnection
 {
+
+   void close();
+
    boolean checkDataReceived();
 
    long getCreationTime();
@@ -36,6 +39,8 @@ public interface AMQPConnection
     * @return
     */
    void inputBuffer(ByteBuf buffer);
+
+   void flush();
 
    void setSaslCallback(Runnable runnable);
 

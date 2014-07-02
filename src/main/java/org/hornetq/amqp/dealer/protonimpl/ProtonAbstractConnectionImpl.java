@@ -44,7 +44,7 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
    // TODO parameterize
    protected final int numberOfCredits = 500;
 
-   protected final Map<Object, ProtonSessionImpl> sessions = new ConcurrentHashMap<>();
+   protected final Map<Object, ProtonSession> sessions = new ConcurrentHashMap<>();
    protected volatile boolean dataReceived;
 
    public ProtonAbstractConnectionImpl(ProtonConnectionSPI connectionSPI)
@@ -64,6 +64,23 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
    {
       setDataReceived();
       trio.pump(buffer);
+   }
+
+   public void flush()
+   {
+      synchronized (trio.getLock())
+      {
+         trio.dispatch();
+      }
+   }
+
+   public void close()
+   {
+      synchronized (getTrio().getLock())
+      {
+         getTrio().getConnection().close();
+         getTrio().dispatch();
+      }
    }
 
    public int getNumberOfCredits()
@@ -103,9 +120,9 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
       trio.setSaslCallback(runnable);
    }
 
-   protected ProtonSessionImpl getSession(Session realSession) throws HornetQAMQPException
+   protected ProtonSession getSession(Session realSession) throws HornetQAMQPException
    {
-      ProtonSessionImpl protonSession = sessions.get(realSession);
+      ProtonSession protonSession = sessions.get(realSession);
       if (protonSession == null)
       {
          // how this is possible? Log a warn here
@@ -117,7 +134,7 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
    protected abstract void remoteLinkOpened(Link link) throws HornetQAMQPException;
 
 
-   protected abstract ProtonSessionImpl sessionOpened(Session realSession) throws HornetQAMQPException;
+   protected abstract ProtonSession sessionOpened(Session realSession) throws HornetQAMQPException;
 
    @Override
    public boolean checkDataReceived()
@@ -158,7 +175,7 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
       @Override
       protected void connectionClosed(org.apache.qpid.proton.engine.Connection connection)
       {
-         for (ProtonSessionImpl protonSession : sessions.values())
+         for (ProtonSession protonSession : sessions.values())
          {
             protonSession.close();
          }
@@ -187,7 +204,7 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
       @Override
       protected void sessionClosed(Session session)
       {
-         ProtonSessionImpl protonSession = (ProtonSessionImpl) session.getContext();
+         ProtonSession protonSession = (ProtonSession) session.getContext();
          protonSession.close();
          sessions.remove(session);
          session.close();
@@ -210,6 +227,21 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
       }
 
       @Override
+      protected void onFlow(Link link)
+      {
+         try
+         {
+            ((ProtonDeliveryHandler) link.getContext()).onFlow(link.getCredit());
+         }
+         catch (Throwable e)
+         {
+            e.printStackTrace();
+            link.close();
+            transport.setCondition(new ErrorCondition(AmqpError.ILLEGAL_STATE, e.getMessage()));
+         }
+      }
+
+      @Override
       protected void linkClosed(Link link)
       {
          try
@@ -218,6 +250,7 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
          }
          catch (Throwable e)
          {
+            e.printStackTrace();
             link.close();
             transport.setCondition(new ErrorCondition(AmqpError.ILLEGAL_STATE, e.getMessage()));
          }

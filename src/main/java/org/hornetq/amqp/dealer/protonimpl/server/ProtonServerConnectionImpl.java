@@ -20,7 +20,7 @@ import org.apache.qpid.proton.engine.Sender;
 import org.apache.qpid.proton.engine.Session;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
 import org.hornetq.amqp.dealer.protonimpl.ProtonAbstractConnectionImpl;
-import org.hornetq.amqp.dealer.protonimpl.ProtonSessionImpl;
+import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
 import org.hornetq.amqp.dealer.spi.ProtonConnectionSPI;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
 
@@ -42,10 +42,10 @@ public class ProtonServerConnectionImpl extends ProtonAbstractConnectionImpl
 
 
 
-   protected ProtonSessionImpl sessionOpened(Session realSession) throws HornetQAMQPException
+   protected ProtonSession sessionOpened(Session realSession) throws HornetQAMQPException
    {
-      ProtonSessionSPI sessionSPI = connectionSPI.createSessionSPI();
-      ProtonSessionImpl protonSession = new ServerProtonSessionImpl(sessionSPI, this, realSession);
+      ProtonSessionSPI sessionSPI = connectionSPI.createSessionSPI(this);
+      ProtonSession protonSession = new ServerProtonSessionImpl(sessionSPI, this, realSession);
       realSession.setContext(protonSession);
       sessions.put(realSession, protonSession);
 

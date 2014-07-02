@@ -31,19 +31,20 @@ import org.hornetq.amqp.dealer.util.NettyWritable;
  */
 public abstract class AbstractProtonSender extends ProtonInitializable implements ProtonDeliveryHandler
 {
-   protected final ProtonSessionImpl protonSession;
+   protected final ProtonSession protonSession;
    protected final Sender sender;
    protected final ProtonAbstractConnectionImpl connection;
    protected boolean closed = false;
    protected final ProtonSessionSPI sessionSPI;
 
-   public AbstractProtonSender(ProtonAbstractConnectionImpl connection, Sender sender, ProtonSessionImpl protonSession, ProtonSessionSPI server)
+   public AbstractProtonSender(ProtonAbstractConnectionImpl connection, Sender sender, ProtonSession protonSession, ProtonSessionSPI server)
    {
       this.connection = connection;
       this.sender = sender;
       this.protonSession = protonSession;
       this.sessionSPI = server;
    }
+
 
 
    /*

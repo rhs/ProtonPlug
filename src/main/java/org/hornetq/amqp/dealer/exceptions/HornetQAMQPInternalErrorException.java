@@ -21,6 +21,11 @@ import org.apache.qpid.proton.amqp.transport.AmqpError;
  */
 public class HornetQAMQPInternalErrorException extends HornetQAMQPException
 {
+   public HornetQAMQPInternalErrorException(String message, Exception e)
+   {
+      super(AmqpError.INTERNAL_ERROR, message, e);
+   }
+
    public HornetQAMQPInternalErrorException(String message)
    {
       super(AmqpError.INTERNAL_ERROR, message);

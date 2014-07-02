@@ -24,7 +24,7 @@ import org.hornetq.amqp.dealer.AMQPClientSender;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
 import org.hornetq.amqp.dealer.protonimpl.AbstractProtonSender;
 import org.hornetq.amqp.dealer.protonimpl.ProtonAbstractConnectionImpl;
-import org.hornetq.amqp.dealer.protonimpl.ProtonSessionImpl;
+import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
 import org.hornetq.amqp.dealer.util.FutureRunnable;
 
@@ -37,9 +37,15 @@ public class ProtonClientSender extends AbstractProtonSender implements AMQPClie
 
    FutureRunnable catchUpRunnable = new FutureRunnable();
 
-   public ProtonClientSender(ProtonAbstractConnectionImpl connection, Sender sender, ProtonSessionImpl protonSession, ProtonSessionSPI server)
+   public ProtonClientSender(ProtonAbstractConnectionImpl connection, Sender sender, ProtonSession protonSession, ProtonSessionSPI server)
    {
       super(connection, sender, protonSession, server);
+   }
+
+
+   public void onFlow(int credits)
+   {
+
    }
 
    @Override

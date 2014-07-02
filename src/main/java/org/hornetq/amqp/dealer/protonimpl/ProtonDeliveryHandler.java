@@ -23,6 +23,8 @@ import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
  */
 public interface ProtonDeliveryHandler
 {
+   void onFlow(int currentCredits);
+
    void onMessage(Delivery delivery) throws HornetQAMQPException;
 
    void checkState();

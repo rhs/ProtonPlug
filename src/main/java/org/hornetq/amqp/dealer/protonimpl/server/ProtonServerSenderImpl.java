@@ -25,13 +25,14 @@ import org.apache.qpid.proton.amqp.transport.DeliveryState;
 import org.apache.qpid.proton.amqp.transport.SenderSettleMode;
 import org.apache.qpid.proton.engine.Delivery;
 import org.apache.qpid.proton.engine.Sender;
+import org.apache.qpid.proton.message.ProtonJMessage;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
+import org.hornetq.amqp.dealer.exceptions.HornetQAMQPInternalErrorException;
 import org.hornetq.amqp.dealer.logger.HornetQAMQPProtocolMessageBundle;
 import org.hornetq.amqp.dealer.protonimpl.AbstractProtonSender;
 import org.hornetq.amqp.dealer.protonimpl.ProtonAbstractConnectionImpl;
-import org.hornetq.amqp.dealer.protonimpl.ProtonSessionImpl;
+import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
-import org.hornetq.amqp.dealer.util.ProtonServerMessage;
 import org.apache.qpid.proton.amqp.messaging.Source;
 
 /**
@@ -46,7 +47,7 @@ public class ProtonServerSenderImpl extends AbstractProtonSender
 
    private Object brokerConsumer;
 
-   public ProtonServerSenderImpl(ProtonAbstractConnectionImpl connection, Sender sender, ProtonSessionImpl protonSession, ProtonSessionSPI server)
+   public ProtonServerSenderImpl(ProtonAbstractConnectionImpl connection, Sender sender, ProtonSession protonSession, ProtonSessionSPI server)
    {
       super(connection, sender, protonSession, server);
    }
@@ -54,6 +55,11 @@ public class ProtonServerSenderImpl extends AbstractProtonSender
    public Object getBrokerConsumer()
    {
       return brokerConsumer;
+   }
+
+   public void onFlow(int currentCredits)
+   {
+      sessionSPI.onFlowConsumer(brokerConsumer, currentCredits);
    }
 
    /*
@@ -68,7 +74,7 @@ public class ProtonServerSenderImpl extends AbstractProtonSender
       try
       {
          // to do whatever you need to make the broker start sending messages to the consumer
-         sessionSPI.startConsumer(brokerConsumer);
+         sessionSPI.startSender(brokerConsumer);
          //protonSession.getServerSession().receiveConsumerCredits(consumerID, -1);
       }
       catch (Exception e)
@@ -128,16 +134,23 @@ public class ProtonServerSenderImpl extends AbstractProtonSender
                throw HornetQAMQPProtocolMessageBundle.BUNDLE.sourceAddressNotSet();
             }
 
-            if (!sessionSPI.queueQuery(queue))
+            try
             {
-               throw HornetQAMQPProtocolMessageBundle.BUNDLE.sourceAddressDoesntExist();
+               if (!sessionSPI.queueQuery(queue))
+               {
+                  throw HornetQAMQPProtocolMessageBundle.BUNDLE.sourceAddressDoesntExist();
+               }
+            }
+            catch (Exception e)
+            {
+               throw new HornetQAMQPInternalErrorException(e.getMessage(), e);
             }
          }
 
          boolean browseOnly = source.getDistributionMode() != null && source.getDistributionMode().equals(COPY);
          try
          {
-            brokerConsumer = sessionSPI.createConsumer(queue, selector, browseOnly);
+            brokerConsumer = sessionSPI.createSender(sender, queue, selector, browseOnly);
          }
          catch (Exception e)
          {
@@ -152,7 +165,15 @@ public class ProtonServerSenderImpl extends AbstractProtonSender
    public void close() throws HornetQAMQPException
    {
       super.close();
-      sessionSPI.closeConsumer(brokerConsumer);
+      try
+      {
+         sessionSPI.closeSender(brokerConsumer);
+      }
+      catch (Exception e)
+      {
+         e.printStackTrace();
+         throw new HornetQAMQPInternalErrorException(e.getMessage());
+      }
    }
 
 
@@ -241,7 +262,7 @@ public class ProtonServerSenderImpl extends AbstractProtonSender
       }
 
       //encode the message
-      ProtonServerMessage serverMessage = null;
+      ProtonJMessage serverMessage = null;
       try
       {
          // This can be done a lot better here

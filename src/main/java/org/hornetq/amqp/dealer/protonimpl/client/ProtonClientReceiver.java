@@ -21,24 +21,30 @@ import io.netty.buffer.PooledByteBufAllocator;
 import org.apache.qpid.proton.amqp.messaging.Accepted;
 import org.apache.qpid.proton.engine.Delivery;
 import org.apache.qpid.proton.engine.Receiver;
-import org.apache.qpid.proton.message.Message;
 import org.apache.qpid.proton.message.ProtonJMessage;
 import org.apache.qpid.proton.message.impl.MessageImpl;
 import org.hornetq.amqp.dealer.AMQPClientReceiver;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
 import org.hornetq.amqp.dealer.protonimpl.ProtonAbstractConnectionImpl;
 import org.hornetq.amqp.dealer.protonimpl.ProtonAbstractReceiver;
-import org.hornetq.amqp.dealer.protonimpl.ProtonSessionImpl;
+import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
+
+import static org.hornetq.amqp.dealer.util.DeliveryUtil.readDelivery;
+import static org.hornetq.amqp.dealer.util.DeliveryUtil.decodeMessageImpl;
 
 /**
  * @author Clebert Suconic
  */
 public class ProtonClientReceiver extends ProtonAbstractReceiver implements AMQPClientReceiver
 {
-   public ProtonClientReceiver(ProtonSessionSPI sessionSPI, ProtonAbstractConnectionImpl connection, ProtonSessionImpl protonSession, Receiver receiver)
+   public ProtonClientReceiver(ProtonSessionSPI sessionSPI, ProtonAbstractConnectionImpl connection, ProtonSession protonSession, Receiver receiver)
    {
       super(sessionSPI, connection, protonSession, receiver);
+   }
+
+   public void onFlow(int credits)
+   {
    }
 
    LinkedBlockingDeque<MessageImpl> queues = new LinkedBlockingDeque<>();
@@ -56,8 +62,7 @@ public class ProtonClientReceiver extends ProtonAbstractReceiver implements AMQP
          synchronized (connection.getTrio().getLock())
          {
             readDelivery(receiver, buffer);
-            MessageImpl clientMessage = (MessageImpl)Message.Factory.create();
-            clientMessage.decode(buffer.array(), buffer.arrayOffset() + buffer.readerIndex(), buffer.readableBytes());
+            MessageImpl clientMessage = decodeMessageImpl(buffer);
 
             // This second method could be better
 //            clientMessage.decode(buffer.nioBuffer());

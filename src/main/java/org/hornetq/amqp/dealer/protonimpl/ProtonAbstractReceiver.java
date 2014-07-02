@@ -13,7 +13,6 @@
 
 package org.hornetq.amqp.dealer.protonimpl;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.qpid.proton.engine.Receiver;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
@@ -27,7 +26,7 @@ public abstract class ProtonAbstractReceiver extends ProtonInitializable impleme
 {
    protected final ProtonAbstractConnectionImpl connection;
 
-   protected final ProtonSessionImpl protonSession;
+   protected final ProtonSession protonSession;
 
    protected final Receiver receiver;
 
@@ -35,7 +34,7 @@ public abstract class ProtonAbstractReceiver extends ProtonInitializable impleme
 
    protected final ProtonSessionSPI sessionSPI;
 
-   public ProtonAbstractReceiver(ProtonSessionSPI sessionSPI, ProtonAbstractConnectionImpl connection, ProtonSessionImpl protonSession, Receiver receiver)
+   public ProtonAbstractReceiver(ProtonSessionSPI sessionSPI, ProtonAbstractConnectionImpl connection, ProtonSession protonSession, Receiver receiver)
    {
       this.connection = connection;
       this.protonSession = protonSession;
@@ -49,19 +48,6 @@ public abstract class ProtonAbstractReceiver extends ProtonInitializable impleme
          this.address = null;
       }
       this.sessionSPI = sessionSPI;
-   }
-
-   protected int readDelivery(Receiver receiver, ByteBuf buffer)
-   {
-      int initial = buffer.writerIndex();
-      // optimization by norman
-      int count;
-      while ((count = receiver.recv(buffer.array(), buffer.arrayOffset() + buffer.writerIndex(), buffer.writableBytes())) > 0)
-      {
-         // Increment the writer index by the number of bytes written into it while calling recv.
-         buffer.writerIndex(buffer.writerIndex() + count);
-      }
-      return buffer.writerIndex() - initial;
    }
 
    @Override

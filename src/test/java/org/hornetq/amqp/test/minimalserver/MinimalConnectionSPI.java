@@ -19,6 +19,7 @@ import java.util.concurrent.Executors;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import org.hornetq.amqp.dealer.AMQPConnection;
 import org.hornetq.amqp.dealer.util.ByteUtil;
 import org.hornetq.amqp.dealer.spi.ProtonConnectionSPI;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
@@ -88,7 +89,7 @@ public class MinimalConnectionSPI implements ProtonConnectionSPI
    }
 
    @Override
-   public ProtonSessionSPI createSessionSPI()
+   public ProtonSessionSPI createSessionSPI(AMQPConnection connection)
    {
       return new MinimalSessionSPI();
    }

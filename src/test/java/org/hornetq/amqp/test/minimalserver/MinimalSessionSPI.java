@@ -13,15 +13,17 @@
 
 package org.hornetq.amqp.test.minimalserver;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.PooledByteBufAllocator;
 import org.apache.qpid.proton.amqp.Binary;
-import org.hornetq.amqp.dealer.protonimpl.ProtonSessionImpl;
+import org.apache.qpid.proton.engine.Delivery;
+import org.apache.qpid.proton.engine.Receiver;
+import org.apache.qpid.proton.engine.Sender;
+import org.apache.qpid.proton.message.ProtonJMessage;
+import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
 import org.hornetq.amqp.dealer.protonimpl.server.ServerProtonSessionImpl;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
 import org.hornetq.amqp.dealer.util.ProtonServerMessage;
@@ -39,7 +41,7 @@ public class MinimalSessionSPI implements ProtonSessionSPI
    ServerProtonSessionImpl session;
 
    @Override
-   public void init(ProtonSessionImpl session, String user, String passcode, boolean transacted)
+   public void init(ProtonSession session, String user, String passcode, boolean transacted)
    {
       this.session = (ServerProtonSessionImpl)session;
       this.user = user;
@@ -60,14 +62,14 @@ public class MinimalSessionSPI implements ProtonSessionSPI
    }
 
    @Override
-   public Object createConsumer(String queue, String filer, boolean browserOnly)
+   public Object createSender(Sender protonSender, String queue, String filer, boolean browserOnly)
    {
       Consumer consumer = new Consumer(DumbServer.getQueue(queue));
       return consumer;
    }
 
    @Override
-   public void startConsumer(Object brokerConsumer)
+   public void startSender(Object brokerConsumer)
    {
       ((Consumer)brokerConsumer).start();
    }
@@ -79,28 +81,27 @@ public class MinimalSessionSPI implements ProtonSessionSPI
    }
 
    @Override
+   public void onFlowConsumer(Object consumer, int credits)
+   {
+   }
+
+   @Override
    public boolean queueQuery(String queueName)
    {
       return true;
    }
 
    @Override
-   public void closeConsumer(Object brokerConsumer)
+   public void closeSender(Object brokerConsumer)
    {
       ((Consumer)brokerConsumer).close();
    }
 
    @Override
-   public ProtonServerMessage encodeMessage(Object message, int deliveryCount)
+   public ProtonJMessage encodeMessage(Object message, int deliveryCount)
    {
       // We are storing internally as EncodedMessage on this minimalserver server
       return (ProtonServerMessage)message;
-   }
-
-   @Override
-   public ByteBuf pooledBuffer(int size)
-   {
-      return PooledByteBufAllocator.DEFAULT.buffer(size);
    }
 
    @Override
@@ -145,14 +146,13 @@ public class MinimalSessionSPI implements ProtonSessionSPI
    }
 
    @Override
-   public void serverSend(String address, int messageFormat, ByteBuffer buffer)
+   public void serverSend(Receiver receiver, Delivery delivery, String address, int messageFormat, ByteBuf buffer)
    {
       ProtonServerMessage serverMessage = new ProtonServerMessage();
-      serverMessage.decode(buffer);
+      serverMessage.decode(buffer.nioBuffer());
 
       BlockingDeque<Object> queue = DumbServer.getQueue(address);
       queue.add(serverMessage);
-
    }
 
 

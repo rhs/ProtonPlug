@@ -13,6 +13,7 @@
 package org.hornetq.amqp.dealer.protonimpl;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import org.apache.qpid.proton.amqp.Binary;
 import org.apache.qpid.proton.amqp.Symbol;
 import org.apache.qpid.proton.amqp.messaging.AmqpValue;
@@ -23,11 +24,13 @@ import org.apache.qpid.proton.amqp.transaction.Discharge;
 import org.apache.qpid.proton.amqp.transport.ErrorCondition;
 import org.apache.qpid.proton.engine.Delivery;
 import org.apache.qpid.proton.engine.Receiver;
-import org.apache.qpid.proton.message.Message;
 import org.apache.qpid.proton.message.impl.MessageImpl;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
 import org.hornetq.amqp.dealer.logger.HornetQAMQPProtocolMessageBundle;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
+
+import static org.hornetq.amqp.dealer.util.DeliveryUtil.decodeMessageImpl;
+import static org.hornetq.amqp.dealer.util.DeliveryUtil.readDelivery;
 
 /**
  * handles an amqp Coordinator to deal with transaction boundaries etc
@@ -45,7 +48,7 @@ public class TransactionHandler implements ProtonDeliveryHandler
    @Override
    public void onMessage(Delivery delivery) throws HornetQAMQPException
    {
-      ByteBuf buffer = sessionSPI.pooledBuffer(1024);
+      ByteBuf buffer = PooledByteBufAllocator.DEFAULT.heapBuffer(1024);
 
       final Receiver receiver;
       try
@@ -57,25 +60,12 @@ public class TransactionHandler implements ProtonDeliveryHandler
             return;
          }
 
-         int count;
-         byte[] data = new byte[1024];
-         //todo an optimisation here would be to only use the buffer if we need more that one recv
-         while ((count = receiver.recv(data, 0, data.length)) > 0)
-         {
-            buffer.writeBytes(data, 0, count);
-         }
+         readDelivery(receiver, buffer);
 
-         // we keep reading until we get end of messages, i.e. -1
-         if (count == 0)
-         {
-            return;
-         }
          receiver.advance();
-         byte[] bytes = new byte[buffer.readableBytes()];
-         buffer.readBytes(bytes);
-         buffer.clear();
-         MessageImpl msg = (MessageImpl) Message.Factory.create();
-         msg.decode(bytes, 0, bytes.length);
+
+         MessageImpl msg = decodeMessageImpl(buffer);
+
          Object action = ((AmqpValue) msg.getBody()).getValue();
 
          if (action instanceof Declare)
@@ -129,6 +119,11 @@ public class TransactionHandler implements ProtonDeliveryHandler
       {
          buffer.release();
       }
+   }
+
+   public void onFlow(int credits)
+   {
+
    }
 
    @Override

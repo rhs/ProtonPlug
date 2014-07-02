@@ -85,7 +85,7 @@ public abstract class ProtonTrio
    }
 
 
-   Runnable dispatchRunnable = new Runnable()
+   final Runnable dispatchRunnable = new Runnable()
    {
       public void run()
       {
@@ -221,6 +221,16 @@ public abstract class ProtonTrio
             saslCallback.run();
          }
       }
+   }
+
+   /** It will only start a dispatch if it's not on the dispatch thread already */
+   public void dispatchIfNeeded()
+   {
+      if (inDispatch.get() != null)
+      {
+         return;
+      }
+      dispatch();
    }
 
    public void dispatch()

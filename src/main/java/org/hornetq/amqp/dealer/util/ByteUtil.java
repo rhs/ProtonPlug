@@ -14,6 +14,7 @@
 package org.hornetq.amqp.dealer.util;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.UnpooledByteBufAllocator;
 
 /**
  * @author Clebert Suconic
@@ -98,6 +99,13 @@ public class ByteUtil
             + Character.digit(s.charAt(i + 1), 16));
       }
       return data;
+   }
+
+   public static byte[] longToBytes(long x)
+   {
+      ByteBuf buffer = UnpooledByteBufAllocator.DEFAULT.heapBuffer(8, 8);
+      buffer.writeLong(x);
+      return buffer.array();
    }
 
 

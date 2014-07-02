@@ -22,11 +22,14 @@ import org.apache.qpid.proton.amqp.transport.ErrorCondition;
 import org.apache.qpid.proton.engine.Delivery;
 import org.apache.qpid.proton.engine.Receiver;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
+import org.hornetq.amqp.dealer.exceptions.HornetQAMQPInternalErrorException;
 import org.hornetq.amqp.dealer.logger.HornetQAMQPProtocolMessageBundle;
 import org.hornetq.amqp.dealer.protonimpl.ProtonAbstractConnectionImpl;
 import org.hornetq.amqp.dealer.protonimpl.ProtonAbstractReceiver;
-import org.hornetq.amqp.dealer.protonimpl.ProtonSessionImpl;
+import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
+
+import static org.hornetq.amqp.dealer.util.DeliveryUtil.readDelivery;
 
 /**
  * @author Clebert Suconic
@@ -37,10 +40,14 @@ public class ProtonServerReceiver extends ProtonAbstractReceiver
 
    private final int numberOfCredits;
 
-   public ProtonServerReceiver(ProtonSessionSPI sessionSPI, ProtonAbstractConnectionImpl connection, ProtonSessionImpl protonSession, Receiver receiver)
+   public ProtonServerReceiver(ProtonSessionSPI sessionSPI, ProtonAbstractConnectionImpl connection, ProtonSession protonSession, Receiver receiver)
    {
       super(sessionSPI, connection, protonSession, receiver);
       this.numberOfCredits = connection.getNumberOfCredits();
+   }
+
+   public void onFlow(int credits)
+   {
    }
 
 
@@ -59,7 +66,14 @@ public class ProtonServerReceiver extends ProtonAbstractReceiver
             String queue = sessionSPI.tempQueueName();
 
 
-            sessionSPI.createTemporaryQueue(queue);
+            try
+            {
+               sessionSPI.createTemporaryQueue(queue);
+            }
+            catch (Exception e)
+            {
+               throw new HornetQAMQPInternalErrorException(e.getMessage(), e);
+            }
             target.setAddress(queue.toString());
          }
          else
@@ -106,14 +120,14 @@ public class ProtonServerReceiver extends ProtonAbstractReceiver
             return;
          }
 
-         ByteBuf buffer = PooledByteBufAllocator.DEFAULT.heapBuffer(1024 * 1024);
+         ByteBuf buffer = PooledByteBufAllocator.DEFAULT.heapBuffer(10 * 1024);
          try
          {
             synchronized (connection.getTrio().getLock())
             {
                readDelivery(receiver, buffer);
 
-               sessionSPI.serverSend(address, delivery.getMessageFormat(), buffer.nioBuffer());
+               sessionSPI.serverSend(receiver, delivery, address, delivery.getMessageFormat(), buffer);
 
                receiver.advance();
                delivery.disposition(Accepted.getInstance());

@@ -29,7 +29,7 @@ import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
  * @author <a href="mailto:andy.taylor@jboss.org">Andy Taylor</a>
  *         4/10/13
  */
-public abstract class ProtonSessionImpl extends ProtonInitializable
+public abstract class ProtonSession extends ProtonInitializable
 {
    protected final ProtonAbstractConnectionImpl connection;
 
@@ -45,7 +45,7 @@ public abstract class ProtonSessionImpl extends ProtonInitializable
 
    protected boolean closed = false;
 
-   public ProtonSessionImpl(ProtonSessionSPI sessionSPI, ProtonAbstractConnectionImpl connection, Session session)
+   public ProtonSession(ProtonSessionSPI sessionSPI, ProtonAbstractConnectionImpl connection, Session session)
    {
       this.connection = connection;
       this.sessionSPI = sessionSPI;

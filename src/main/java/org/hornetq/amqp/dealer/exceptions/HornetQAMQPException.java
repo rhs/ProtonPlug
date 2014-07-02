@@ -31,6 +31,12 @@ public class HornetQAMQPException extends Exception
 
    private final Symbol amqpError;
 
+   public HornetQAMQPException(Symbol amqpError, String message, Exception e)
+   {
+      super(message, e);
+      this.amqpError = amqpError;
+   }
+
    public HornetQAMQPException(Symbol amqpError, String message)
    {
       super(message);

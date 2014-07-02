@@ -13,12 +13,13 @@
 
 package org.hornetq.amqp.dealer.spi;
 
-import java.nio.ByteBuffer;
-
 import io.netty.buffer.ByteBuf;
 import org.apache.qpid.proton.amqp.Binary;
-import org.hornetq.amqp.dealer.protonimpl.ProtonSessionImpl;
-import org.hornetq.amqp.dealer.util.ProtonServerMessage;
+import org.apache.qpid.proton.engine.Delivery;
+import org.apache.qpid.proton.engine.Receiver;
+import org.apache.qpid.proton.engine.Sender;
+import org.apache.qpid.proton.message.ProtonJMessage;
+import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
 
 /**
  * These are methods where the Proton Plug component will call your server
@@ -28,32 +29,32 @@ import org.hornetq.amqp.dealer.util.ProtonServerMessage;
 public interface ProtonSessionSPI
 {
 
-   void init(ProtonSessionImpl session, String user, String passcode, boolean transacted);
+   void init(ProtonSession session, String user, String passcode, boolean transacted) throws Exception;
 
    void start();
 
-   Object createConsumer(String queue, String filer, boolean browserOnly);
+   void onFlowConsumer(Object consumer, int credits);
 
-   void startConsumer(Object brokerConsumer);
+   Object createSender(Sender protonSender, String queue, String filer, boolean browserOnly) throws Exception;
 
-   void createTemporaryQueue(String queueName);
+   void startSender(Object brokerConsumer) throws Exception;
 
-   boolean queueQuery(String queueName);
+   void createTemporaryQueue(String queueName) throws Exception;
 
-   void closeConsumer(Object brokerConsumer);
+   boolean queueQuery(String queueName) throws Exception;
+
+   void closeSender(Object brokerConsumer) throws Exception;
 
    // This one can be a lot improved
-   ProtonServerMessage encodeMessage(Object message, int deliveryCount);
-
-   ByteBuf pooledBuffer(int size);
+   ProtonJMessage encodeMessage(Object message, int deliveryCount);
 
    Binary getCurrentTXID();
 
    String tempQueueName();
 
-   void commitCurrentTX();
+   void commitCurrentTX() throws Exception;
 
-   void rollbackCurrentTX();
+   void rollbackCurrentTX() throws Exception;
 
    void close();
 
@@ -73,6 +74,13 @@ public interface ProtonSessionSPI
    void resumeDelivery(Object consumer);
 
 
-   void serverSend(String address, int messageFormat, ByteBuffer messageEncoded);
+   /**
+    *
+    * @param delivery
+    * @param address
+    * @param messageFormat
+    * @param messageEncoded a Heap Buffer ByteBuffer (safe to convert into byte[])
+    */
+   void serverSend(Receiver receiver, Delivery delivery, String address, int messageFormat, ByteBuf messageEncoded) throws Exception;
 
 }
