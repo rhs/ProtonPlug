@@ -23,6 +23,7 @@ import org.apache.qpid.proton.engine.Delivery;
 import org.apache.qpid.proton.engine.Receiver;
 import org.apache.qpid.proton.engine.Sender;
 import org.apache.qpid.proton.message.ProtonJMessage;
+import org.hornetq.amqp.dealer.protonimpl.ProtonPlugSender;
 import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
 import org.hornetq.amqp.dealer.protonimpl.server.ServerProtonSessionImpl;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
@@ -62,7 +63,7 @@ public class MinimalSessionSPI implements ProtonSessionSPI
    }
 
    @Override
-   public Object createSender(Sender protonSender, String queue, String filer, boolean browserOnly)
+   public Object createSender(ProtonPlugSender plugSender, String queue, String filer, boolean browserOnly)
    {
       Consumer consumer = new Consumer(DumbServer.getQueue(queue));
       return consumer;

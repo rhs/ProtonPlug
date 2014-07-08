@@ -93,6 +93,7 @@ public abstract class ProtonSession extends ProtonInitializable
 
    public void replaceTag(byte[] tag)
    {
+      // TODO: do we need to reuse this?
    }
 
    public void close()

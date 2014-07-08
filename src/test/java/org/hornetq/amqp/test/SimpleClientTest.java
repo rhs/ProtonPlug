@@ -17,6 +17,7 @@ import javax.jms.JMSException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -223,6 +224,11 @@ public class SimpleClientTest
          ByteBuf buf = PooledByteBufAllocator.DEFAULT.heapBuffer(1024 * 1024);
          MessageImpl message = (MessageImpl) Message.Factory.create();
          message.setBody(new Data(new Binary(new byte[5])));
+
+         Properties props = new Properties();
+         props.setMessageId("Some String");
+         props.setAbsoluteExpiryTime(new Date(System.currentTimeMillis()));
+         message.setProperties(props);
 
          message.encode(new NettyWritable(buf));
 

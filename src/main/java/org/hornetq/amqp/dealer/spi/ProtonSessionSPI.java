@@ -19,6 +19,7 @@ import org.apache.qpid.proton.engine.Delivery;
 import org.apache.qpid.proton.engine.Receiver;
 import org.apache.qpid.proton.engine.Sender;
 import org.apache.qpid.proton.message.ProtonJMessage;
+import org.hornetq.amqp.dealer.protonimpl.ProtonPlugSender;
 import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
 
 /**
@@ -35,7 +36,7 @@ public interface ProtonSessionSPI
 
    void onFlowConsumer(Object consumer, int credits);
 
-   Object createSender(Sender protonSender, String queue, String filer, boolean browserOnly) throws Exception;
+   Object createSender(ProtonPlugSender protonSender, String queue, String filer, boolean browserOnly) throws Exception;
 
    void startSender(Object brokerConsumer) throws Exception;
 
@@ -46,7 +47,7 @@ public interface ProtonSessionSPI
    void closeSender(Object brokerConsumer) throws Exception;
 
    // This one can be a lot improved
-   ProtonJMessage encodeMessage(Object message, int deliveryCount);
+   ProtonJMessage encodeMessage(Object message, int deliveryCount) throws Exception;
 
    Binary getCurrentTXID();
 

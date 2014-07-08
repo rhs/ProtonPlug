@@ -31,6 +31,7 @@ import org.hornetq.amqp.dealer.exceptions.HornetQAMQPInternalErrorException;
 import org.hornetq.amqp.dealer.logger.HornetQAMQPProtocolMessageBundle;
 import org.hornetq.amqp.dealer.protonimpl.AbstractProtonSender;
 import org.hornetq.amqp.dealer.protonimpl.ProtonAbstractConnectionImpl;
+import org.hornetq.amqp.dealer.protonimpl.ProtonPlugSender;
 import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
 import org.apache.qpid.proton.amqp.messaging.Source;
@@ -39,7 +40,7 @@ import org.apache.qpid.proton.amqp.messaging.Source;
  * @author Clebert Suconic
  */
 
-public class ProtonServerSenderImpl extends AbstractProtonSender
+public class ProtonServerSenderImpl extends AbstractProtonSender implements ProtonPlugSender
 {
 
    private static final Symbol SELECTOR = Symbol.getSymbol("jms-selector");
@@ -150,7 +151,7 @@ public class ProtonServerSenderImpl extends AbstractProtonSender
          boolean browseOnly = source.getDistributionMode() != null && source.getDistributionMode().equals(COPY);
          try
          {
-            brokerConsumer = sessionSPI.createSender(sender, queue, selector, browseOnly);
+            brokerConsumer = sessionSPI.createSender(this, queue, selector, browseOnly);
          }
          catch (Exception e)
          {
@@ -253,7 +254,7 @@ public class ProtonServerSenderImpl extends AbstractProtonSender
    /**
     * handle an out going message from HornetQ, send via the Proton Sender
     * */
-   public int handleDelivery(Object message, int deliveryCount)
+   public int deliverMessage(Object message, int deliveryCount) throws Exception
    {
       if (closed)
       {
@@ -262,7 +263,7 @@ public class ProtonServerSenderImpl extends AbstractProtonSender
       }
 
       //encode the message
-      ProtonJMessage serverMessage = null;
+      ProtonJMessage serverMessage;
       try
       {
          // This can be done a lot better here
@@ -271,6 +272,7 @@ public class ProtonServerSenderImpl extends AbstractProtonSender
       catch (Throwable e)
       {
          e.printStackTrace();
+         throw new HornetQAMQPInternalErrorException(e.getMessage(), e);
       }
 
       return performSend(serverMessage, message);

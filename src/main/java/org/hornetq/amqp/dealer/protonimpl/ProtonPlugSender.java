@@ -11,23 +11,17 @@
  * permissions and limitations under the License.
  */
 
-package org.hornetq.amqp.dealer.exceptions;
+package org.hornetq.amqp.dealer.protonimpl;
 
-import org.apache.qpid.proton.amqp.transport.AmqpError;
+import org.apache.qpid.proton.engine.Sender;
 
 /**
- * @author <a href="mailto:andy.taylor@jboss.org">Andy Taylor</a>
- *         6/6/13
+ * @author Clebert Suconic
  */
-public class HornetQAMQPInternalErrorException extends HornetQAMQPException
-{
-   public HornetQAMQPInternalErrorException(String message, Throwable e)
-   {
-      super(AmqpError.INTERNAL_ERROR, message, e);
-   }
 
-   public HornetQAMQPInternalErrorException(String message)
-   {
-      super(AmqpError.INTERNAL_ERROR, message);
-   }
+public interface ProtonPlugSender
+{
+   int deliverMessage(Object message, int deliveryCount) throws Exception;
+
+   Sender getSender();
 }

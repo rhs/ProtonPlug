@@ -47,6 +47,7 @@ import org.junit.runners.Parameterized;
 
 /**
  * @author <a href="mailto:andy.taylor@jboss.org">Andy Taylor</a>
+ * @author Clebert Suconic
  */
 @RunWith(Parameterized.class)
 public class ProtonTest extends AbstractJMSTest

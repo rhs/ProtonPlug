@@ -51,12 +51,12 @@ public class ServerProtonSessionImpl extends ProtonSession
     * @param deliveryCount
     * @return the number of bytes sent
     */
-   public int serverDelivery(Object message, Object consumer, int deliveryCount)
+   public int serverDelivery(Object message, Object consumer, int deliveryCount) throws Exception
    {
       ProtonServerSenderImpl protonSender = (ProtonServerSenderImpl)serverSenders.get(consumer);
       if (protonSender != null)
       {
-         return protonSender.handleDelivery(message, deliveryCount);
+         return protonSender.deliverMessage(message, deliveryCount);
       }
       return 0;
    }
