@@ -152,7 +152,6 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
       return creationTime;
    }
 
-
    protected synchronized void setDataReceived()
    {
       dataReceived = true;

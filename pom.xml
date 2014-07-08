@@ -50,12 +50,12 @@
          <scope>test</scope>
       </dependency>
 
-      <dependency>
+      <!-- <dependency>
          <groupId>io.hawtjms</groupId>
          <artifactId>hawtjms-amqp</artifactId>
          <version>1.0-SNAPSHOT</version>
          <scope>test</scope>
-      </dependency>
+      </dependency> -->
 
       <dependency>
          <groupId>org.apache.qpid</groupId>

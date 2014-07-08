@@ -21,8 +21,8 @@ import javax.jms.Queue;
 
 import java.lang.ref.WeakReference;
 
-import io.hawtjms.jms.JmsConnectionFactory;
-import io.hawtjms.jms.JmsQueue;
+//import io.hawtjms.jms.JmsConnectionFactory;
+//import io.hawtjms.jms.JmsQueue;
 import org.apache.qpid.amqp_1_0.jms.impl.ConnectionFactoryImpl;
 import org.apache.qpid.amqp_1_0.jms.impl.QueueImpl;
 import org.hornetq.amqp.test.minimalserver.DumbServer;
@@ -95,7 +95,8 @@ public class AbstractJMSTest
       {
          if (useHawtJMS)
          {
-            return new JmsConnectionFactory("aaaaaaaa", "aaaaaaa", "amqp://localhost:5672");
+//            return new JmsConnectionFactory("aaaaaaaa", "aaaaaaa", "amqp://localhost:5672");
+            return null;
          }
          else
          {
@@ -106,7 +107,8 @@ public class AbstractJMSTest
       {
          if (useHawtJMS)
          {
-            return new JmsConnectionFactory("amqp://localhost:5672");
+//            return new JmsConnectionFactory("amqp://localhost:5672");
+            return null;
          }
          else
          {
@@ -120,7 +122,8 @@ public class AbstractJMSTest
    {
       if (useHawtJMS)
       {
-         return new JmsQueue(address);
+//         return new JmsQueue(address);
+         return null;
       }
       else
       {

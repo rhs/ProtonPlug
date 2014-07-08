@@ -59,7 +59,7 @@ public class ProtonTest extends AbstractJMSTest
    public static Collection<Object[]> data()
    {
       List<Object[]> list = Arrays.asList(new Object[][]{
-         {Boolean.TRUE, Boolean.TRUE},
+//         {Boolean.TRUE, Boolean.TRUE},
          {Boolean.FALSE, Boolean.TRUE}});
 
       System.out.println("Size = " + list.size());
