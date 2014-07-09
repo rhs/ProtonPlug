@@ -66,8 +66,9 @@ public abstract class AbstractProtonSender extends ProtonInitializable implement
       synchronized (connection.getTrio().getLock())
       {
          sender.close();
-         connection.getTrio().dispatch();
       }
+
+      connection.getTrio().dispatch();
    }
 
    @Override
@@ -122,10 +123,9 @@ public abstract class AbstractProtonSender extends ProtonInitializable implement
             {
                sender.advance();
             }
-
-            connection.getTrio().dispatch();
          }
 
+         connection.flush();
 
          return size;
       }

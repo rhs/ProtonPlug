@@ -17,6 +17,7 @@ import java.util.concurrent.Executor;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
 import org.hornetq.amqp.dealer.AMQPConnection;
 import org.hornetq.amqp.dealer.spi.ProtonConnectionSPI;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
@@ -67,13 +68,13 @@ public class AMQPClientSPI implements ProtonConnectionSPI
    }
 
    @Override
-   public void output(ByteBuf bytes)
+   public void output(final ByteBuf bytes, final ChannelFutureListener futureCompletion)
    {
       if (DebugInfo.debug)
       {
          ByteUtil.debugFrame("Bytes leaving client", bytes);
       }
-      channel.writeAndFlush(bytes);
+      channel.writeAndFlush(bytes).addListener(futureCompletion);
    }
 
    @Override

@@ -17,9 +17,12 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import org.apache.qpid.proton.amqp.transport.AmqpError;
 import org.apache.qpid.proton.amqp.transport.ErrorCondition;
 import org.apache.qpid.proton.engine.Connection;
@@ -30,7 +33,9 @@ import org.apache.qpid.proton.engine.Transport;
 import org.hornetq.amqp.dealer.AMQPConnection;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
 import org.hornetq.amqp.dealer.spi.ProtonConnectionSPI;
+import org.hornetq.amqp.dealer.util.DebugInfo;
 import org.hornetq.amqp.dealer.util.ProtonTrio;
+import org.hornetq.amqp.dealer.util.ReusableLatch;
 
 /**
  * Clebert Suconic
@@ -40,6 +45,10 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
    protected final ProtonInterceptTrio trio;
    protected final ProtonConnectionSPI connectionSPI;
    protected final long creationTime;
+
+   private final AtomicInteger pendingBytes = new AtomicInteger(0);
+
+   protected final ReusableLatch pendingWrites = new ReusableLatch(0);
 
    // TODO parameterize
    protected final int numberOfCredits = 500;
@@ -73,6 +82,7 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
       {
          trio.dispatch();
       }
+      throttle();
    }
 
    public void close()
@@ -80,8 +90,8 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
       synchronized (getTrio().getLock())
       {
          getTrio().getConnection().close();
-         getTrio().dispatch();
       }
+      flush();
    }
 
    public int getNumberOfCredits()
@@ -145,6 +155,14 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
       dataReceived = false;
 
       return res;
+   }
+
+   public void throttle()
+   {
+      if (pendingWrites.getCount() > 5)
+      {
+         System.out.println("Pending on " + pendingWrites.getCount() + " pendingBytes = " + pendingBytes.get());
+      }
    }
 
    @Override
@@ -299,35 +317,84 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
 
 
       @Override
-      protected void onTransport(Transport transport)
+      protected void onTransport(final Transport transport)
       {
          ByteBuf bytes = getPooledNettyBytes(transport);
+         // TODO Norman: Dumb question but Do we need the subtraction here? can't we just get writerIndex?
+         //  I wasn't sure if the pooled buffer could get different read potisiont for me
          if (bytes != null)
          {
+            pendingWrites.countUp();
+            final int size = bytes.writerIndex() - bytes.readerIndex();
             // null means nothing to be written
-            connectionSPI.output(bytes);
+            connectionSPI.output(bytes, new ChannelFutureListener()
+            {
+               @Override
+               public void operationComplete(ChannelFuture future) throws Exception
+               {
+                  synchronized (getLock())
+                  {
+                     if (DebugInfo.debug)
+                     {
+                        System.err.println("Pending before:" + pendingBytes + " at " + ProtonAbstractConnectionImpl.this.getClass());
+                     }
+                     pendingBytes.addAndGet(-size);
+                     if (DebugInfo.debug)
+                     {
+                        System.err.println("Pending after:" + pendingBytes + " at " + ProtonAbstractConnectionImpl.this.getClass());
+                     }
+                     transport.pop(size);
+                  }
+                  pendingWrites.countDown();
+               }
+            });
+
          }
       }
 
       /** return the current byte output */
       private ByteBuf getPooledNettyBytes(Transport transport)
       {
-         int size = transport.pending();
+         int size = transport.pending() - pendingBytes.get();
 
          if (size <= 0)
          {
+            if (size < 0)
+            {
+               System.out.println("it was -1 now");
+            }
             return null;
          }
 
-         ByteBuf buffer = PooledByteBufAllocator.DEFAULT.buffer(size);
+         try
+         {
+            ByteBuf buffer = PooledByteBufAllocator.DEFAULT.buffer(size);
 
-         ByteBuffer bufferInput = transport.head();
+            if (pendingBytes.get() == 0)
+            {
+               ByteBuffer bufferInput = transport.head();
 
-         buffer.writeBytes(bufferInput);
+               buffer.writeBytes(bufferInput);
 
-         transport.pop(size);
+               return buffer;
+            }
+            else
+            {
+               ByteBuffer bufferInput = transport.head();
 
-         return buffer;
+               // TODO... NORMAN!!! I need a better way here!!!!
+               byte[] intermediateArray = new byte[size];
+               bufferInput.position(pendingBytes.get());
+               bufferInput.get(intermediateArray, 0, size);
+               buffer.writeBytes(intermediateArray);
+
+               return buffer;
+            }
+         }
+         finally
+         {
+            pendingBytes.addAndGet(size);
+         }
       }
 
    }

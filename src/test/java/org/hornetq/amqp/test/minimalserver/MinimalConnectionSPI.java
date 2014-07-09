@@ -19,6 +19,10 @@ import java.util.concurrent.Executors;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.util.concurrent.GenericProgressiveFutureListener;
+import io.netty.util.concurrent.ProgressiveFuture;
 import org.hornetq.amqp.dealer.AMQPConnection;
 import org.hornetq.amqp.dealer.util.ByteUtil;
 import org.hornetq.amqp.dealer.spi.ProtonConnectionSPI;
@@ -72,7 +76,7 @@ public class MinimalConnectionSPI implements ProtonConnectionSPI
 
 
    @Override
-   public void output(ByteBuf bytes)
+   public void output(final ByteBuf bytes, final ChannelFutureListener futureCompletion)
    {
 
       if (DebugInfo.debug)
@@ -98,7 +102,7 @@ public class MinimalConnectionSPI implements ProtonConnectionSPI
 
       // ^^ debug
 
-      channel.writeAndFlush(bytes);
+      channel.writeAndFlush(bytes).addListener(futureCompletion);
    }
 
    @Override

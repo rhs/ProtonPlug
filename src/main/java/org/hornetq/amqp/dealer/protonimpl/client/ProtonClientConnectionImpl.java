@@ -46,8 +46,9 @@ public class ProtonClientConnectionImpl extends ProtonAbstractConnectionImpl imp
          this.afterInit(future);
          trio.createClientSasl(sasl);
          trio.getConnection().open();
-         trio.dispatch();
       }
+
+      flush();
 
       waitWithTimeout(future);
    }
@@ -63,9 +64,9 @@ public class ProtonClientConnectionImpl extends ProtonAbstractConnectionImpl imp
          sessionImpl = (ProtonClientSessionImpl) getSession(session);
          sessionImpl.afterInit(futureRunnable);
          session.open();
-         getTrio().dispatch();
       }
 
+      flush();
       waitWithTimeout(futureRunnable);
 
       return sessionImpl;

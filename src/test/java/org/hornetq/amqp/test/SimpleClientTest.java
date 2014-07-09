@@ -280,7 +280,7 @@ public class SimpleClientTest
       }
       else
       {
-         return 10000;
+         return 100000;
       }
    }
 

@@ -16,6 +16,7 @@ package org.hornetq.amqp.dealer.spi;
 import java.util.concurrent.Executor;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelFutureListener;
 import org.hornetq.amqp.dealer.AMQPConnection;
 
 /**
@@ -34,7 +35,7 @@ public interface ProtonConnectionSPI
 
    void close();
 
-   void output(ByteBuf bytes);
+   void output(ByteBuf bytes, final ChannelFutureListener futureCompletion);
 
    ProtonSessionSPI createSessionSPI(AMQPConnection connection);
 

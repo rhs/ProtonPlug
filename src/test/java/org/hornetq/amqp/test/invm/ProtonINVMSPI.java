@@ -18,10 +18,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelFutureListener;
 import org.hornetq.amqp.dealer.AMQPConnection;
 import org.hornetq.amqp.dealer.protonimpl.server.ProtonServerConnectionImpl;
 import org.hornetq.amqp.dealer.spi.ProtonConnectionSPI;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
+import org.hornetq.amqp.dealer.util.ByteUtil;
+import org.hornetq.amqp.dealer.util.DebugInfo;
 import org.hornetq.amqp.test.minimalserver.MinimalSessionSPI;
 
 /**
@@ -35,9 +38,27 @@ public class ProtonINVMSPI implements ProtonConnectionSPI
 
    ProtonServerConnectionImpl serverConnection = new ProtonServerConnectionImpl(new ReturnSPI());
 
-   ExecutorService mainExecutor = Executors.newSingleThreadExecutor();
+   final ExecutorService mainExecutor = Executors.newSingleThreadExecutor();
 
-   ExecutorService returningExecutor = Executors.newSingleThreadExecutor();
+   final ExecutorService returningExecutor = Executors.newSingleThreadExecutor();
+
+   public ProtonINVMSPI()
+   {
+      mainExecutor.execute(new Runnable()
+      {
+         public void run()
+         {
+            Thread.currentThread().setName("MainExecutor-INVM");
+         }
+      });
+      returningExecutor.execute(new Runnable()
+      {
+         public void run()
+         {
+            Thread.currentThread().setName("ReturningExecutor-INVM");
+         }
+      });
+   }
 
    @Override
    public Executor newSingleThreadExecutor()
@@ -58,8 +79,13 @@ public class ProtonINVMSPI implements ProtonConnectionSPI
    }
 
    @Override
-   public void output(final ByteBuf bytes)
+   public void output(final ByteBuf bytes, final ChannelFutureListener futureCompletion)
    {
+      if (DebugInfo.debug)
+      {
+         ByteUtil.debugFrame("InVM->", bytes);
+      }
+
       bytes.retain();
       mainExecutor.execute(new Runnable()
       {
@@ -67,7 +93,19 @@ public class ProtonINVMSPI implements ProtonConnectionSPI
          {
             try
             {
+               if (DebugInfo.debug)
+               {
+                  ByteUtil.debugFrame("InVMDone->", bytes);
+               }
                serverConnection.inputBuffer(bytes);
+               try
+               {
+                  futureCompletion.operationComplete(null);
+               }
+               catch (Exception e)
+               {
+                  e.printStackTrace();
+               }
             }
             finally
             {
@@ -75,6 +113,8 @@ public class ProtonINVMSPI implements ProtonConnectionSPI
             }
          }
       });
+
+      serverConnection.throttle();
    }
 
    @Override
@@ -116,8 +156,15 @@ public class ProtonINVMSPI implements ProtonConnectionSPI
       }
 
       @Override
-      public void output(final ByteBuf bytes)
+      public void output(final ByteBuf bytes, final ChannelFutureListener futureCompletion)
       {
+
+         if (DebugInfo.debug)
+         {
+            ByteUtil.debugFrame("InVM<-", bytes);
+         }
+
+
          bytes.retain();
          returningExecutor.execute(new Runnable()
          {
@@ -125,7 +172,22 @@ public class ProtonINVMSPI implements ProtonConnectionSPI
             {
                try
                {
+
+                  if (DebugInfo.debug)
+                  {
+                     ByteUtil.debugFrame("InVM done<-", bytes);
+                  }
+
                   returningConnection.inputBuffer(bytes);
+                  try
+                  {
+                     futureCompletion.operationComplete(null);
+                  }
+                  catch (Exception e)
+                  {
+                     e.printStackTrace();
+                  }
+
                }
                finally
                {

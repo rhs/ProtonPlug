@@ -55,8 +55,9 @@ public class ProtonClientSessionImpl extends ProtonSession implements AMQPClient
          amqpSender.afterInit(futureRunnable);
          sender.setContext(amqpSender);
          sender.open();
-         connection.getTrio().dispatch();
       }
+
+      connection.flush();
 
       waitWithTimeout(futureRunnable);
       return amqpSender;
@@ -78,8 +79,9 @@ public class ProtonClientSessionImpl extends ProtonSession implements AMQPClient
          receiver.setContext(amqpReceiver);
          amqpReceiver.afterInit(futureRunnable);
          receiver.open();
-         connection.getTrio().dispatch();
       }
+
+      connection.flush();
 
       waitWithTimeout(futureRunnable);
 
