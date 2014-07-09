@@ -67,7 +67,7 @@ public abstract class ProtonAbstractReceiver extends ProtonInitializable impleme
       synchronized (connection.getTrio().getLock())
       {
          receiver.flow(credits);
-         connection.getTrio().dispatch();
+         connection.getTrio().dispatchIfNeeded();
       }
    }
 }

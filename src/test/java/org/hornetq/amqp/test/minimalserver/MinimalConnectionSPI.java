@@ -33,6 +33,7 @@ public class MinimalConnectionSPI implements ProtonConnectionSPI
 {
    Channel channel;
 
+   private AMQPConnection connection;
 
    public MinimalConnectionSPI(Channel channel)
    {
@@ -57,6 +58,18 @@ public class MinimalConnectionSPI implements ProtonConnectionSPI
    {
       executorService.shutdown();
    }
+
+   public void setConnection(AMQPConnection connection)
+   {
+      this.connection = connection;
+   }
+
+   public AMQPConnection getConnection()
+   {
+      return connection;
+   }
+
+
 
    @Override
    public void output(ByteBuf bytes)

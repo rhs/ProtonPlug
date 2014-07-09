@@ -34,6 +34,8 @@ import org.hornetq.amqp.dealer.AMQPClientSender;
 import org.hornetq.amqp.dealer.AMQPClientSession;
 import org.hornetq.amqp.dealer.SASLPlain;
 import org.hornetq.amqp.dealer.util.NettyWritable;
+import org.hornetq.amqp.test.invm.InVMTestConnector;
+import org.hornetq.amqp.test.minimalclient.Connector;
 import org.hornetq.amqp.test.minimalclient.SimpleAMQPConnector;
 import org.hornetq.amqp.test.minimalserver.DumbServer;
 import org.hornetq.amqp.test.minimalserver.MinimalServer;
@@ -52,24 +54,29 @@ public class SimpleClientTest
 {
 
 
-   @Parameterized.Parameters(name = "sasl={0}")
+
+   @Parameterized.Parameters(name = "sasl={0}, inVM={1}")
    public static Collection<Object[]> data()
    {
       List<Object[]> list = Arrays.asList(new Object[][]{
-//         {Boolean.TRUE}, // TODO: Fix SASL
-         {Boolean.FALSE}});
+//         {Boolean.TRUE, Boolean.FALSE}, // TODO: Fix SASL and netty
+         {Boolean.FALSE, Boolean.TRUE},
+//         {Boolean.TRUE, Boolean.TRUE}, // TODO: Fix SASL and inVM
+         {Boolean.FALSE, Boolean.FALSE}});
 
       System.out.println("Size = " + list.size());
       return list;
    }
 
-   public SimpleClientTest(boolean useSASL)
+   public SimpleClientTest(boolean useSASL, boolean useInVM)
    {
       this.useSASL = useSASL;
+      this.useInVM = useInVM;
    }
 
 
    private final boolean useSASL;
+   private final boolean useInVM;
    private MinimalServer server = new MinimalServer();
 
    @Before
@@ -77,14 +84,21 @@ public class SimpleClientTest
    {
       DumbServer.clear();
       AbstractJMSTest.forceGC();
-      server.start("127.0.0.1", 5672, useSASL);
+      if (!useInVM)
+      {
+         server.start("127.0.0.1", 5672, useSASL);
+      }
+
 
    }
 
    @After
    public void tearDown() throws Exception
    {
-      server.stop();
+      if (!useInVM)
+      {
+         server.stop();
+      }
       DumbServer.clear();
    }
 
@@ -92,7 +106,7 @@ public class SimpleClientTest
    @Test
    public void testSimple() throws Exception
    {
-      SimpleAMQPConnector connector = new SimpleAMQPConnector();
+      Connector connector = newConnector();
       connector.start();
       AMQPClientConnection clientConnection = connector.connect("127.0.0.1", 5672);
 
@@ -104,7 +118,7 @@ public class SimpleClientTest
 
       MessageImpl message = (MessageImpl) Message.Factory.create();
 
-      Data value = new Data(new Binary(new byte[5]));
+      Data value = new Data(new Binary(new byte[500]));
 
       message.setBody(value);
       clientSender.send(message);
@@ -120,18 +134,28 @@ public class SimpleClientTest
 
    }
 
+   private Connector newConnector()
+   {
+      if (useInVM)
+      {
+         return new InVMTestConnector();
+      }
+      else
+      {
+         return new SimpleAMQPConnector();
+      }
+   }
+
    @Test
    public void testMessagesReceivedInParallel() throws Throwable
    {
-      SimpleAMQPConnector connector1 = new SimpleAMQPConnector();
+      Connector connector1 = newConnector();
       connector1.start();
       final AMQPClientConnection clientConnection = connector1.connect("127.0.0.1", 5672);
       clientConnection.clientOpen(useSASL ? new SASLPlain("AA", "AA") : null);
 
 
-      SimpleAMQPConnector connector2 = new SimpleAMQPConnector();
-      connector2.start();
-      final AMQPClientConnection connectionConsumer = connector2.connect("127.0.0.1", 5672);
+      final AMQPClientConnection connectionConsumer = connector1.connect("127.0.0.1", 5672);
       connectionConsumer.clientOpen(useSASL ? new SASLPlain("AA", "AA") : null);
 
 
@@ -249,7 +273,15 @@ public class SimpleClientTest
 
    protected int getNumberOfMessages()
    {
-      return 10000;
+      // TODO: I can't get passed 10K with netty
+      if (useInVM)
+      {
+         return 100000;
+      }
+      else
+      {
+         return 10000;
+      }
    }
 
 }

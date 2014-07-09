@@ -37,4 +37,8 @@ public interface ProtonConnectionSPI
    void output(ByteBuf bytes);
 
    ProtonSessionSPI createSessionSPI(AMQPConnection connection);
+
+   void setConnection(AMQPConnection connection);
+
+   AMQPConnection getConnection();
 }

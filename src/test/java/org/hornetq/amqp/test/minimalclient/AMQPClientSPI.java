@@ -31,6 +31,7 @@ public class AMQPClientSPI implements ProtonConnectionSPI
 {
 
    final Channel channel;
+   protected AMQPConnection connection;
 
    public AMQPClientSPI(Channel channel)
    {
@@ -46,7 +47,17 @@ public class AMQPClientSPI implements ProtonConnectionSPI
    @Override
    public String[] getSASLMechanisms()
    {
-      return new String[0];
+      return new String[] {"PLAIN"};
+   }
+
+   public void setConnection(AMQPConnection connection)
+   {
+      this.connection = connection;
+   }
+
+   public AMQPConnection getConnection()
+   {
+      return connection;
    }
 
    @Override

@@ -64,6 +64,7 @@ public abstract class ProtonSession extends ProtonInitializable
       }
       catch (Exception e)
       {
+         e.printStackTrace();
          throw HornetQAMQPProtocolMessageBundle.BUNDLE.errorCreatingHornetQSession(e.getMessage());
       }
    }

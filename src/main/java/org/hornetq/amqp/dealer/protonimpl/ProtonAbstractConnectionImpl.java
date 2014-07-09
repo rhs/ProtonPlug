@@ -52,6 +52,7 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
       this.connectionSPI = connectionSPI;
       this.creationTime = System.currentTimeMillis();
       trio = createTrio(connectionSPI);
+      connectionSPI.setConnection(this);
    }
 
    protected ProtonInterceptTrio createTrio(ProtonConnectionSPI connectionSPI)

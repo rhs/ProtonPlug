@@ -32,11 +32,9 @@ import org.hornetq.amqp.dealer.protonimpl.client.ProtonClientConnectionFactory;
  * @author Clebert Suconic
  */
 
-public class SimpleAMQPConnector
+public class SimpleAMQPConnector implements Connector
 {
-
    private Bootstrap bootstrap;
-
 
    public void start()
    {
