@@ -39,18 +39,11 @@ public class ProtonClientSender extends AbstractProtonSender implements AMQPClie
 
    FutureRunnable catchUpRunnable = new FutureRunnable();
 
-   CreditsSemaphore creditsSemaphore = new CreditsSemaphore(0);
-
    public ProtonClientSender(ProtonAbstractConnectionImpl connection, Sender sender, ProtonSession protonSession, ProtonSessionSPI server)
    {
       super(connection, sender, protonSession, server);
    }
 
-
-   public void onFlow(int credits)
-   {
-      this.creditsSemaphore.setCredits(credits);
-   }
 
    @Override
    public void onMessage(Delivery delivery) throws HornetQAMQPException
@@ -69,19 +62,6 @@ public class ProtonClientSender extends AbstractProtonSender implements AMQPClie
       if (sender.getSenderSettleMode() != SenderSettleMode.SETTLED)
       {
          catchUpRunnable.countUp();
-      }
-      if (!creditsSemaphore.tryAcquire())
-      {
-         try
-         {
-            creditsSemaphore.acquire();
-         }
-         catch (InterruptedException e)
-         {
-            Thread.currentThread().interrupt();
-            // nothing to be done here.. we just keep going
-            throw new IllegalStateException(e.getMessage(), e);
-         }
       }
       performSend(message, catchUpRunnable);
    }

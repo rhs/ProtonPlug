@@ -22,6 +22,7 @@ import org.apache.qpid.proton.engine.impl.LinkImpl;
 import org.apache.qpid.proton.message.ProtonJMessage;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
+import org.hornetq.amqp.dealer.util.CreditsSemaphore;
 import org.hornetq.amqp.dealer.util.NettyWritable;
 
 /**
@@ -36,6 +37,8 @@ public abstract class AbstractProtonSender extends ProtonInitializable implement
    protected final ProtonAbstractConnectionImpl connection;
    protected boolean closed = false;
    protected final ProtonSessionSPI sessionSPI;
+   protected CreditsSemaphore creditsSemaphore = new CreditsSemaphore(0);
+
 
    public AbstractProtonSender(ProtonAbstractConnectionImpl connection, Sender sender, ProtonSession protonSession, ProtonSessionSPI server)
    {
@@ -43,6 +46,11 @@ public abstract class AbstractProtonSender extends ProtonInitializable implement
       this.sender = sender;
       this.protonSession = protonSession;
       this.sessionSPI = server;
+   }
+
+   public void onFlow(int credits)
+   {
+      this.creditsSemaphore.setCredits(credits);
    }
 
    /*
@@ -89,6 +97,20 @@ public abstract class AbstractProtonSender extends ProtonInitializable implement
 
    protected int performSend(ProtonJMessage serverMessage, Object context)
    {
+      if (!creditsSemaphore.tryAcquire())
+      {
+         try
+         {
+            creditsSemaphore.acquire();
+         }
+         catch (InterruptedException e)
+         {
+            Thread.currentThread().interrupt();
+            // nothing to be done here.. we just keep going
+            throw new IllegalStateException(e.getMessage(), e);
+         }
+      }
+
       //presettle means we can ack the message on the dealer side before we send it, i.e. for browsers
       boolean preSettle = sender.getRemoteSenderSettleMode() == SenderSettleMode.SETTLED;
 

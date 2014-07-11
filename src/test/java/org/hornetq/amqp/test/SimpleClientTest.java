@@ -240,7 +240,7 @@ public class SimpleClientTest
       for (int i = 0; i < 100000; i++)
       {
 
-         if (i % 1000 == 0)
+         if (i % 10000 == 0)
          {
             System.out.println("Decoded " + i);
          }
@@ -272,7 +272,7 @@ public class SimpleClientTest
 
    protected int getNumberOfMessages()
    {
-      return 100000;
+      return 10000;
    }
 
 }

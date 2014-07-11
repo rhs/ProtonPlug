@@ -60,6 +60,7 @@ public class ProtonServerSenderImpl extends AbstractProtonSender implements Prot
 
    public void onFlow(int currentCredits)
    {
+      super.onFlow(currentCredits);
       sessionSPI.onFlowConsumer(brokerConsumer, currentCredits);
    }
 
