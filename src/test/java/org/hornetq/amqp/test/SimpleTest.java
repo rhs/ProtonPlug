@@ -34,14 +34,9 @@ import org.hornetq.amqp.dealer.AMQPClientSender;
 import org.hornetq.amqp.dealer.AMQPClientSession;
 import org.hornetq.amqp.dealer.SASLPlain;
 import org.hornetq.amqp.dealer.util.NettyWritable;
-import org.hornetq.amqp.test.invm.InVMTestConnector;
 import org.hornetq.amqp.test.minimalclient.Connector;
-import org.hornetq.amqp.test.minimalclient.SimpleAMQPConnector;
-import org.hornetq.amqp.test.minimalserver.DumbServer;
-import org.hornetq.amqp.test.minimalserver.MinimalServer;
-import org.junit.After;
+import org.hornetq.amqp.test.util.SimpleServerAbstractTest;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -50,7 +45,7 @@ import org.junit.runners.Parameterized;
  * @author Clebert Suconic
  */
 @RunWith(Parameterized.class)
-public class SimpleClientTest
+public class SimpleTest extends SimpleServerAbstractTest
 {
 
 
@@ -68,40 +63,10 @@ public class SimpleClientTest
       return list;
    }
 
-   public SimpleClientTest(boolean useSASL, boolean useInVM)
+   public SimpleTest(boolean useSASL, boolean useInVM)
    {
-      this.useSASL = useSASL;
-      this.useInVM = useInVM;
+      super(useSASL, useInVM);
    }
-
-
-   private final boolean useSASL;
-   private final boolean useInVM;
-   private MinimalServer server = new MinimalServer();
-
-   @Before
-   public void setUp() throws Exception
-   {
-      DumbServer.clear();
-      AbstractJMSTest.forceGC();
-      if (!useInVM)
-      {
-         server.start("127.0.0.1", 5672, useSASL);
-      }
-
-
-   }
-
-   @After
-   public void tearDown() throws Exception
-   {
-      if (!useInVM)
-      {
-         server.stop();
-      }
-      DumbServer.clear();
-   }
-
 
    @Test
    public void testSimple() throws Exception
@@ -134,106 +99,8 @@ public class SimpleClientTest
 
    }
 
-   private Connector newConnector()
-   {
-      if (useInVM)
-      {
-         return new InVMTestConnector();
-      }
-      else
-      {
-         return new SimpleAMQPConnector();
-      }
-   }
-
    @Test
-   public void testMessagesReceivedInParallel() throws Throwable
-   {
-      Connector connector1 = newConnector();
-      connector1.start();
-      final AMQPClientConnection clientConnection = connector1.connect("127.0.0.1", 5672);
-      clientConnection.clientOpen(useSASL ? new SASLPlain("AA", "AA") : null);
-
-
-      final AMQPClientConnection connectionConsumer = connector1.connect("127.0.0.1", 5672);
-      connectionConsumer.clientOpen(useSASL ? new SASLPlain("AA", "AA") : null);
-
-
-      final int numMessages = getNumberOfMessages();
-      long time = System.currentTimeMillis();
-
-      final ArrayList<Throwable> exceptions = new ArrayList<>();
-
-      Thread t = new Thread(new Runnable()
-      {
-         @Override
-         public void run()
-         {
-            try
-            {
-               AMQPClientSession sessionConsumer = connectionConsumer.createClientSession();
-               AMQPClientReceiver receiver = sessionConsumer.createReceiver("Test");
-               receiver.flow(numMessages);
-
-               int received = 0;
-               int count = numMessages;
-               while (count > 0)
-               {
-                  if (received % 500 == 0 && received > 0)
-                  {
-                     receiver.flow(500);
-                     System.out.println("Received " + received);
-                  }
-                  received++;
-
-                  try
-                  {
-                     MessageImpl m = (MessageImpl) receiver.receiveMessage(5, TimeUnit.SECONDS);
-                     Assert.assertNotNull("Could not receive message count=" + count + " on consumer", m);
-                     count--;
-                  }
-                  catch (JMSException e)
-                  {
-                     break;
-                  }
-               }
-            }
-            catch (Throwable e)
-            {
-               exceptions.add(e);
-               e.printStackTrace();
-            }
-         }
-      });
-
-      AMQPClientSession session = clientConnection.createClientSession();
-      t.start();
-
-      AMQPClientSender sender = session.createSender("Test", true);
-      for (int i = 0; i < numMessages; i++)
-      {
-         MessageImpl message = (MessageImpl) Message.Factory.create();
-         message.setBody(new Data(new Binary(new byte[5])));
-         sender.send(message);
-      }
-
-      long taken = (System.currentTimeMillis() - time);
-      System.out.println("taken on send = " + taken + " SASL = " + useSASL + " on simple client");
-      t.join();
-
-      for (Throwable e : exceptions)
-      {
-         throw e;
-      }
-      taken = (System.currentTimeMillis() - time);
-      System.out.println("taken = " + taken + " SASL = " + useSASL + " on simple client");
-
-   }
-
-
-
-   @Test
-   public void testMeasure()
+   public void testMeasureMessageImpl()
    {
 
       long time = System.currentTimeMillis();
@@ -272,7 +139,7 @@ public class SimpleClientTest
 
    protected int getNumberOfMessages()
    {
-      return 10000;
+      return 100000;
    }
 
 }
