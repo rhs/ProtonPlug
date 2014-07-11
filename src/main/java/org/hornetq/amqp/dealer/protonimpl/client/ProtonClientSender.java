@@ -13,6 +13,7 @@
 
 package org.hornetq.amqp.dealer.protonimpl.client;
 
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.qpid.amqp_1_0.type.messaging.Accepted;
@@ -26,6 +27,7 @@ import org.hornetq.amqp.dealer.protonimpl.AbstractProtonSender;
 import org.hornetq.amqp.dealer.protonimpl.ProtonAbstractConnectionImpl;
 import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
+import org.hornetq.amqp.dealer.util.CreditsSemaphore;
 import org.hornetq.amqp.dealer.util.FutureRunnable;
 
 /**
@@ -37,6 +39,8 @@ public class ProtonClientSender extends AbstractProtonSender implements AMQPClie
 
    FutureRunnable catchUpRunnable = new FutureRunnable();
 
+   CreditsSemaphore creditsSemaphore = new CreditsSemaphore(0);
+
    public ProtonClientSender(ProtonAbstractConnectionImpl connection, Sender sender, ProtonSession protonSession, ProtonSessionSPI server)
    {
       super(connection, sender, protonSession, server);
@@ -45,7 +49,7 @@ public class ProtonClientSender extends AbstractProtonSender implements AMQPClie
 
    public void onFlow(int credits)
    {
-
+      this.creditsSemaphore.setCredits(credits);
    }
 
    @Override
@@ -65,6 +69,19 @@ public class ProtonClientSender extends AbstractProtonSender implements AMQPClie
       if (sender.getSenderSettleMode() != SenderSettleMode.SETTLED)
       {
          catchUpRunnable.countUp();
+      }
+      if (!creditsSemaphore.tryAcquire())
+      {
+         try
+         {
+            creditsSemaphore.acquire();
+         }
+         catch (InterruptedException e)
+         {
+            Thread.currentThread().interrupt();
+            // nothing to be done here.. we just keep going
+            throw new IllegalStateException(e.getMessage(), e);
+         }
       }
       performSend(message, catchUpRunnable);
    }

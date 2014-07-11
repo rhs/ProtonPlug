@@ -207,7 +207,6 @@ public class SimpleClientTest
       });
 
       AMQPClientSession session = clientConnection.createClientSession();
-
       t.start();
 
       AMQPClientSender sender = session.createSender("Test", true);
@@ -273,15 +272,7 @@ public class SimpleClientTest
 
    protected int getNumberOfMessages()
    {
-      // TODO: I can't get passed 10K with netty
-      if (useInVM)
-      {
-         return 100000;
-      }
-      else
-      {
-         return 100000;
-      }
+      return 100000;
    }
 
 }

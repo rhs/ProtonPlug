@@ -45,8 +45,6 @@ public abstract class AbstractProtonSender extends ProtonInitializable implement
       this.sessionSPI = server;
    }
 
-
-
    /*
    * start the session
    * */
@@ -112,8 +110,6 @@ public abstract class AbstractProtonSender extends ProtonInitializable implement
 
             // this will avoid a copy.. patch provided by Norman using buffer.array()
             sender.send(nettyBuffer.array(), nettyBuffer.arrayOffset() + nettyBuffer.readerIndex(), nettyBuffer.readableBytes());
-
-            ((LinkImpl) sender).addCredit(1);
 
             if (preSettle)
             {
