@@ -13,7 +13,6 @@
 
 package org.hornetq.amqp.dealer.protonimpl.client;
 
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.qpid.amqp_1_0.type.messaging.Accepted;
@@ -27,7 +26,6 @@ import org.hornetq.amqp.dealer.protonimpl.AbstractProtonSender;
 import org.hornetq.amqp.dealer.protonimpl.ProtonAbstractConnectionImpl;
 import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;
-import org.hornetq.amqp.dealer.util.CreditsSemaphore;
 import org.hornetq.amqp.dealer.util.FutureRunnable;
 
 /**

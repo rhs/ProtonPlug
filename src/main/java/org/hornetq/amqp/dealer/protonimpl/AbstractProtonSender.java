@@ -18,7 +18,6 @@ import io.netty.buffer.PooledByteBufAllocator;
 import org.apache.qpid.proton.amqp.transport.SenderSettleMode;
 import org.apache.qpid.proton.engine.Delivery;
 import org.apache.qpid.proton.engine.Sender;
-import org.apache.qpid.proton.engine.impl.LinkImpl;
 import org.apache.qpid.proton.message.ProtonJMessage;
 import org.hornetq.amqp.dealer.exceptions.HornetQAMQPException;
 import org.hornetq.amqp.dealer.spi.ProtonSessionSPI;

@@ -17,7 +17,6 @@ import io.netty.buffer.ByteBuf;
 import org.apache.qpid.proton.amqp.Binary;
 import org.apache.qpid.proton.engine.Delivery;
 import org.apache.qpid.proton.engine.Receiver;
-import org.apache.qpid.proton.engine.Sender;
 import org.apache.qpid.proton.message.ProtonJMessage;
 import org.hornetq.amqp.dealer.protonimpl.ProtonPlugSender;
 import org.hornetq.amqp.dealer.protonimpl.ProtonSession;
