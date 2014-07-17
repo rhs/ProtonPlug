@@ -386,22 +386,28 @@ public abstract class ProtonTrio
 
       switch (event.getType())
       {
-         case CONNECTION_REMOTE_STATE:
+         case CONNECTION_REMOTE_OPEN:
+         case CONNECTION_REMOTE_CLOSE:
             onRemoteState(event.getConnection());
             break;
-         case CONNECTION_LOCAL_STATE:
+         case CONNECTION_OPEN:
+         case CONNECTION_CLOSE:
             onLocalState(event.getConnection());
             break;
-         case SESSION_REMOTE_STATE:
+         case SESSION_REMOTE_OPEN:
+         case SESSION_REMOTE_CLOSE:
             onRemoteState(event.getSession());
             break;
-         case SESSION_LOCAL_STATE:
+         case SESSION_OPEN:
+         case SESSION_CLOSE:
             onLocalState(event.getSession());
             break;
-         case LINK_REMOTE_STATE:
+         case LINK_REMOTE_OPEN:
+         case LINK_REMOTE_CLOSE:
             onRemoteState(event.getLink());
             break;
-         case LINK_LOCAL_STATE:
+         case LINK_OPEN:
+         case LINK_CLOSE:
             onLocalState(event.getLink());
             break;
          case LINK_FLOW:
