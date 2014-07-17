@@ -21,6 +21,6 @@ import org.hornetq.amqp.dealer.AMQPClientConnection;
 
 public interface Connector
 {
-   public abstract void start();
-   public abstract AMQPClientConnection connect(String host, int port) throws Exception;
+   void start();
+   AMQPClientConnection connect(String host, int port) throws Exception;
 }

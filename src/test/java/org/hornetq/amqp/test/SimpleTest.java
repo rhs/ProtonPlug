@@ -13,8 +13,6 @@
 
 package org.hornetq.amqp.test;
 
-import javax.jms.JMSException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
@@ -36,7 +34,6 @@ import org.hornetq.amqp.dealer.SASLPlain;
 import org.hornetq.amqp.dealer.util.NettyWritable;
 import org.hornetq.amqp.test.minimalclient.Connector;
 import org.hornetq.amqp.test.util.SimpleServerAbstractTest;
-import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
