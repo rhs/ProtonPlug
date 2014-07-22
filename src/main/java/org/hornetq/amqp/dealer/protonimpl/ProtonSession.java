@@ -125,6 +125,7 @@ public abstract class ProtonSession extends ProtonInitializable
          }
          catch (Exception e)
          {
+            System.out.println("EXCEPTION CLOSING CONSUMER:");
             e.printStackTrace();
             // TODO Logging
          }
@@ -137,6 +138,7 @@ public abstract class ProtonSession extends ProtonInitializable
       }
       catch (Exception e)
       {
+         System.out.println("EXCEPTION ROLLING BACK/CLOSING session SPI:");
          e.printStackTrace();
          // TODO logging
       }

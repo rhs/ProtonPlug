@@ -113,8 +113,6 @@ public class ProtonINVMSPI implements ProtonConnectionSPI
             }
          }
       });
-
-      serverConnection.throttle();
    }
 
    @Override

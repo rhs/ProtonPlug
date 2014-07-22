@@ -46,10 +46,6 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
    protected final ProtonConnectionSPI connectionSPI;
    protected final long creationTime;
 
-   private final AtomicInteger pendingBytes = new AtomicInteger(0);
-
-   protected final ReusableLatch pendingWrites = new ReusableLatch(0);
-
    // TODO parameterize
    protected final int numberOfCredits = 500;
 
@@ -82,7 +78,6 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
       {
          trio.dispatch();
       }
-      throttle();
    }
 
    public void close()
@@ -155,14 +150,6 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
       dataReceived = false;
 
       return res;
-   }
-
-   public void throttle()
-   {
-      if (pendingWrites.getCount() > 5)
-      {
-         System.out.println("Pending on " + pendingWrites.getCount() + " pendingBytes = " + pendingBytes.get());
-      }
    }
 
    @Override
@@ -316,85 +303,56 @@ public abstract class ProtonAbstractConnectionImpl extends ProtonInitializable i
       }
 
 
+      private int offset = 0;
+
       @Override
       protected void onTransport(final Transport transport)
       {
          ByteBuf bytes = getPooledNettyBytes(transport);
-         // TODO Norman: Dumb question but Do we need the subtraction here? can't we just get writerIndex?
-         //  I wasn't sure if the pooled buffer could get different read potisiont for me
+         // null means nothing to be written
          if (bytes != null)
          {
-            pendingWrites.countUp();
-            final int size = bytes.writerIndex() - bytes.readerIndex();
-            // null means nothing to be written
+            final int size = bytes.readableBytes();
+            offset += size;
             connectionSPI.output(bytes, new ChannelFutureListener()
             {
                @Override
                public void operationComplete(ChannelFuture future) throws Exception
-               {
-                  synchronized (getLock())
-                  {
-                     if (DebugInfo.debug)
-                     {
-                        System.err.println("Pending before:" + pendingBytes + " at " + ProtonAbstractConnectionImpl.this.getClass());
-                     }
-                     pendingBytes.addAndGet(-size);
-                     if (DebugInfo.debug)
-                     {
-                        System.err.println("Pending after:" + pendingBytes + " at " + ProtonAbstractConnectionImpl.this.getClass());
-                     }
-                     transport.pop(size);
-                  }
-                  pendingWrites.countDown();
+                {
+                    synchronized (getLock())
+                    {
+                        offset -= size;
+                        transport.pop(size);
+                    }
                }
             });
-
          }
       }
 
       /** return the current byte output */
       private ByteBuf getPooledNettyBytes(Transport transport)
       {
-         int size = transport.pending() - pendingBytes.get();
+         int pending = transport.pending();
 
-         if (size <= 0)
-         {
-            if (size < 0)
-            {
-               System.out.println("it was -1 now");
-            }
-            return null;
+         if (pending < 0) {
+             return null;//throw new IllegalStateException("xxx need to close the connection");
          }
 
-         try
-         {
-            ByteBuf buffer = PooledByteBufAllocator.DEFAULT.buffer(size);
+         int size = pending - offset;
 
-            if (pendingBytes.get() == 0)
-            {
-               ByteBuffer bufferInput = transport.head();
-
-               buffer.writeBytes(bufferInput);
-
-               return buffer;
-            }
-            else
-            {
-               ByteBuffer bufferInput = transport.head();
-
-               // TODO... NORMAN!!! I need a better way here!!!!
-               byte[] intermediateArray = new byte[size];
-               bufferInput.position(pendingBytes.get());
-               bufferInput.get(intermediateArray, 0, size);
-               buffer.writeBytes(intermediateArray);
-
-               return buffer;
-            }
+         if (size < 0) {
+             throw new IllegalStateException("negative size: " + pending + ", " + offset);
          }
-         finally
-         {
-            pendingBytes.addAndGet(size);
+
+         if (size == 0) {
+             return null;
          }
+
+         ByteBuf buffer = PooledByteBufAllocator.DEFAULT.buffer(size);
+         ByteBuffer head = transport.head();
+         head.position(offset);
+         buffer.writeBytes(head);
+         return buffer;
       }
 
    }

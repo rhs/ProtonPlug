@@ -147,7 +147,7 @@ public class MicroBenchmarkSimpleClientTest extends SimpleServerAbstractTest
 
    protected int getNumberOfMessages()
    {
-      return 100000;
+      return 2000;
    }
 
 }

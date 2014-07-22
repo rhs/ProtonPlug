@@ -63,7 +63,7 @@ public abstract class ProtonTrio
    {
 
       // TODO parameterize maxFrameSize
-      transport.setMaxFrameSize(1024 * 1024);
+      //transport.setMaxFrameSize(1024 * 1024);
       transport.bind(connection);
       connection.collect(collector);
       this.executor = executor;
@@ -153,28 +153,26 @@ public abstract class ProtonTrio
       {
          synchronized (lock)
          {
-
-            final ByteBuffer input = transport.getInputBuffer();
-
-            while (bytes.readerIndex() < bytes.writerIndex())
-            {
-               int remaining = input.remaining();
-               if (remaining == 0)
-               {
-                  System.err.println("Buffer full!!!");
-                  break;
-               }
-               int min = Math.min(remaining, bytes.readableBytes());
-               ByteBuffer tmp = bytes.internalNioBuffer(bytes.readerIndex(), min);
-               input.put(tmp);
-               if (!processBuffer())
-               {
-                  System.err.println("DEBUG This.. Process Buffer returned false!!!!!!!!!!!!!");
-                  break;
-               }
-               dispatch();
-               bytes.readerIndex(bytes.readerIndex() + min);
-            }
+             while (bytes.readableBytes() > 0)
+             {
+                 int capacity = transport.capacity();
+                 if (capacity > 0) {
+                     ByteBuffer tail = transport.tail();
+                     int min = Math.min(capacity, bytes.readableBytes());
+                     tail.limit(min);
+                     bytes.readBytes(tail);
+                     transport.process();
+                     checkSASL();
+                     dispatch();
+                 } else  {
+                     if (capacity == 0) {
+                         System.out.println("abandoning: " + bytes.readableBytes());
+                     } else {
+                         System.out.println("transport closed, discarding: " + bytes.readableBytes());
+                     }
+                     bytes.skipBytes(bytes.readableBytes());
+                 }
+             }
          }
       }
       finally
@@ -182,21 +180,6 @@ public abstract class ProtonTrio
          // After everything is processed we still need to check for more dispatches!
          dispatch();
       }
-   }
-
-
-   private boolean processBuffer()
-   {
-      if (transport.processInput() != TransportResultFactory.ok())
-      {
-         System.err.println("Couldn't process header!!!");
-         connection.setCondition(new ErrorCondition(AmqpError.ILLEGAL_STATE, "Error processing header"));
-         return false;
-      }
-
-      checkSASL();
-      dispatch();
-      return true;
    }
 
    private void checkSASL()
